@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { STOCK_IMAGES } from '../../assets/stockImages';
 import { loadUserAssets, saveUserAsset } from '../../utils/storage';
-import { Upload, Image as ImageIcon, Sparkles, Trash2, Check } from 'lucide-react';
+import { Upload, Image as ImageIcon } from 'lucide-react';
 
 export const AssetLibrary: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'stock' | 'uploads'>('stock');

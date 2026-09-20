@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Project, CanvasElement, CanvasBackground, Template, BrandKit } from '../types/canvas';
 import { TEMPLATES, createProjectFromTemplate } from '../templates/templatesData';
 import {

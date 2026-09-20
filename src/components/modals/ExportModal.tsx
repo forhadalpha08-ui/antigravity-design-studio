@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Project } from '../../types/canvas';
 import { exportProject, ExportFormat } from '../../utils/export';
 import confetti from 'canvas-confetti';
-import { X, Download, Check, Sparkles, AlertCircle, FileText, Image } from 'lucide-react';
+import { X, Download } from 'lucide-react';
 
 interface ExportModalProps {
   project: Project;

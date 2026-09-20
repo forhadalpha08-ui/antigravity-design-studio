@@ -7,7 +7,7 @@ import { ImageSection } from './ImageSection';
 import { EffectsSection } from './EffectsSection';
 import { AnimationSection } from './AnimationSection';
 import { CANVAS_PRESETS } from '../../utils/presetSizes';
-import { Lock, Unlock, Trash2, Sliders, Layers } from 'lucide-react';
+import { Lock, Unlock, Trash2, Sliders } from 'lucide-react';
 
 interface InspectorPanelProps {
   project: Project;

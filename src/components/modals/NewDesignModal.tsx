@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { CANVAS_PRESETS } from '../../utils/presetSizes';
-import { X, Plus, Sparkles, Smartphone, Presentation, Image, ArrowLeftRight } from 'lucide-react';
+import { X, Plus, ArrowLeftRight } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 
 interface NewDesignModalProps {

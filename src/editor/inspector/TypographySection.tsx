@@ -2,14 +2,12 @@ import React from 'react';
 import { TextElement } from '../../types/canvas';
 import { GOOGLE_FONTS, TYPOGRAPHY_PRESETS } from '../../utils/fonts';
 import {
-  Bold,
   Italic,
   Underline,
   AlignLeft,
   AlignCenter,
   AlignRight,
   CaseUpper,
-  CaseLower,
 } from 'lucide-react';
 
 interface TypographySectionProps {

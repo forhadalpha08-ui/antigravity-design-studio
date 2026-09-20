@@ -1,7 +1,7 @@
 import React from 'react';
 import { Template } from '../../types/canvas';
 import { CanvasRenderer } from '../../editor/canvas/CanvasRenderer';
-import { X, Sparkles, ArrowRight } from 'lucide-react';
+import { X, ArrowRight } from 'lucide-react';
 
 interface TemplatePreviewModalProps {
   template: Template;

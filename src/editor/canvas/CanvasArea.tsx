@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState } from 'react';
 import { Project, CanvasElement } from '../../types/canvas';
 import { CanvasRenderer } from './CanvasRenderer';
 import { TransformControls } from './TransformControls';

@@ -2,7 +2,6 @@ import React from 'react';
 import { TextElement } from '../../types/canvas';
 import { TYPOGRAPHY_PRESETS, TypographyPreset } from '../../utils/fonts';
 import { generateId } from '../../utils/id';
-import { Type } from 'lucide-react';
 
 interface TextDrawerProps {
   canvasWidth: number;
