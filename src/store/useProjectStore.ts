@@ -35,14 +35,8 @@ export type SaveStatus = 'saved' | 'saving' | 'unsaved';
 
 export function useProjectState() {
   const [projects, setProjects] = useState<Project[]>(getInitialProjects);
-  const [currentProjectId, setCurrentId] = useState<string | null>(() => {
-    const savedId = getCurrentProjectId();
-    const all = getInitialProjects();
-    if (savedId && all.some((p) => p.id === savedId)) {
-      return savedId;
-    }
-    return null; // Start on Dashboard if no project actively selected
-  });
+  // Always start on the main website / dashboard on load
+  const [currentProjectId, setCurrentId] = useState<string | null>(null);
 
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const [canUndo, setCanUndo] = useState(false);
@@ -168,6 +162,7 @@ export function useProjectState() {
       persistProject(currentProject);
     }
     setCurrentId(null);
+    setCurrentProjectId('');
   }, [currentProject]);
 
   // Duplicate a project

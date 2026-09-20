@@ -3,6 +3,7 @@ import { Project, Template } from '../../types/canvas';
 import { CANVAS_PRESETS } from '../../utils/presetSizes';
 import { TEMPLATES } from '../../templates/templatesData';
 import { CanvasRenderer } from '../../editor/canvas/CanvasRenderer';
+import { TemplateCard } from './TemplateCard';
 import {
   Sparkles,
   Plus,
@@ -260,50 +261,14 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
           {trendingTemplates.map((tpl) => (
-            <div
+            <TemplateCard
               key={tpl.id}
-              onClick={() => onOpenTemplate(tpl)}
-              className="group relative bg-neutral-900/90 rounded-2xl overflow-hidden border border-neutral-800 hover:border-violet-500/60 transition-all cursor-pointer shadow-lg hover:shadow-violet-600/10 flex flex-col"
-            >
-              <div className="p-5 bg-gradient-to-br from-neutral-800/40 via-neutral-900 to-black min-h-[140px] flex flex-col justify-between">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono text-neutral-500 uppercase">
-                    {tpl.width} × {tpl.height}
-                  </span>
-                  {tpl.isPremium && (
-                    <span className="text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded">
-                      EXCLUSIVE
-                    </span>
-                  )}
-                </div>
-
-                <div>
-                  <span className="text-[10px] text-violet-400 uppercase font-semibold">
-                    {tpl.category}
-                  </span>
-                  <h3 className="text-sm font-bold text-white group-hover:text-violet-300 transition-colors mt-0.5">
-                    {tpl.title}
-                  </h3>
-                </div>
-              </div>
-
-              <div className="p-3 bg-neutral-950/70 border-t border-neutral-800/80 flex items-center justify-between text-xs">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onPreviewTemplate(tpl);
-                  }}
-                  className="text-neutral-400 hover:text-white text-[11px]"
-                >
-                  Preview
-                </button>
-                <span className="text-violet-400 font-semibold text-[11px] group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
-                  Use Template →
-                </span>
-              </div>
-            </div>
+              template={tpl}
+              onOpen={onOpenTemplate}
+              onPreview={onPreviewTemplate}
+            />
           ))}
         </div>
       </section>

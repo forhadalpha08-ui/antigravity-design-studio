@@ -3,6 +3,7 @@ import { Template } from '../../types/canvas';
 import { TEMPLATES } from '../../templates/templatesData';
 import { TEMPLATE_CATEGORIES } from '../../templates/categories';
 import { CanvasRenderer } from '../../editor/canvas/CanvasRenderer';
+import { TemplateCard } from './TemplateCard';
 import {
   Search,
   Sparkles,
@@ -173,57 +174,12 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
             {filtered.map((tpl) => (
-              <div
+              <TemplateCard
                 key={tpl.id}
-                onClick={() => onOpenTemplate(tpl)}
-                className="group relative bg-neutral-900/90 rounded-2xl overflow-hidden border border-neutral-800 hover:border-violet-500/60 transition-all cursor-pointer shadow-xl hover:shadow-violet-600/10 flex flex-col"
-              >
-                <div className="p-5 bg-gradient-to-br from-neutral-800/40 via-neutral-900 to-black min-h-[160px] flex flex-col justify-between">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono text-neutral-500 uppercase">
-                      {tpl.width} × {tpl.height}
-                    </span>
-                    {tpl.isPremium && (
-                      <span className="text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded">
-                        PRO
-                      </span>
-                    )}
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] text-violet-400 uppercase font-semibold">
-                      {tpl.category}
-                    </span>
-                    <h3 className="text-sm font-bold text-white group-hover:text-violet-300 transition-colors mt-0.5">
-                      {tpl.title}
-                    </h3>
-                    <p className="text-[11px] text-neutral-400 mt-1 line-clamp-1">
-                      {tpl.tags.join(' • ')}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-neutral-950/80 border-t border-neutral-800/80 flex items-center justify-between text-xs">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onPreviewTemplate(tpl);
-                    }}
-                    className="flex items-center gap-1 text-neutral-400 hover:text-white text-[11px]"
-                  >
-                    <Eye size={13} />
-                    <span>Preview</span>
-                  </button>
-
-                  <button
-                    onClick={() => onOpenTemplate(tpl)}
-                    className="text-violet-400 font-semibold text-[11px] group-hover:translate-x-0.5 transition-transform flex items-center gap-1"
-                  >
-                    <span>Use Template</span>
-                    <ArrowRight size={13} />
-                  </button>
-                </div>
-              </div>
+                template={tpl}
+                onOpen={onOpenTemplate}
+                onPreview={onPreviewTemplate}
+              />
             ))}
           </div>
         )}

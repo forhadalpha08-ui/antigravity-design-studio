@@ -3,6 +3,7 @@ import { Project, Template } from '../types/canvas';
 import { CANVAS_PRESETS } from '../utils/presetSizes';
 import { TEMPLATES } from '../templates/templatesData';
 import { TEMPLATE_CATEGORIES } from '../templates/categories';
+import { CanvasRenderer } from '../editor/canvas/CanvasRenderer';
 import {
   Sparkles,
   Plus,
@@ -148,19 +149,44 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
                   <div
                     key={tpl.id}
                     onClick={() => onOpenTemplate(tpl)}
-                    className="p-3 bg-gradient-to-br from-neutral-800/40 to-neutral-950 border border-neutral-800 rounded-xl flex flex-col justify-between min-h-[110px] active:border-violet-500"
+                    className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden flex flex-col active:border-violet-500 shadow-md group"
                   >
-                    <div>
-                      <span className="text-[9px] text-violet-400 font-bold uppercase">
-                        {tpl.category}
-                      </span>
-                      <h4 className="text-xs font-bold text-white mt-0.5 line-clamp-2">
-                        {tpl.title}
-                      </h4>
+                    <div className="w-full h-28 bg-[#090a0f] flex items-center justify-center overflow-hidden relative checkerboard-pattern">
+                      <div
+                        className="origin-center pointer-events-none transform shadow-md"
+                        style={{
+                          transform: `scale(${Math.min(130 / (tpl.width || 1080), 95 / (tpl.height || 1080))})`,
+                          width: `${tpl.width}px`,
+                          height: `${tpl.height}px`,
+                        }}
+                      >
+                        <CanvasRenderer
+                          project={tpl as unknown as Project}
+                          selectedId={null}
+                          onSelectElement={() => {}}
+                          onUpdateElement={() => {}}
+                        />
+                      </div>
+                      {tpl.isPremium && (
+                        <span className="absolute top-1.5 left-1.5 text-[8px] font-bold bg-neutral-900/90 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded shadow">
+                          PRO
+                        </span>
+                      )}
                     </div>
-                    <span className="text-[10px] text-neutral-400 font-mono">
-                      {tpl.width} × {tpl.height}
-                    </span>
+                    <div className="p-2.5 flex flex-col justify-between flex-1 bg-neutral-900">
+                      <div>
+                        <span className="text-[9px] text-violet-400 font-bold uppercase tracking-wider block">
+                          {tpl.category}
+                        </span>
+                        <h4 className="text-[11px] font-bold text-white mt-0.5 line-clamp-1">
+                          {tpl.title}
+                        </h4>
+                      </div>
+                      <div className="flex items-center justify-between text-[9px] text-neutral-500 mt-1.5 font-mono">
+                        <span>{tpl.width}×{tpl.height}</span>
+                        <span className="text-violet-400 font-semibold">Use →</span>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -179,19 +205,43 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
                 <div
                   key={tpl.id}
                   onClick={() => onOpenTemplate(tpl)}
-                  className="p-3.5 bg-neutral-900 border border-neutral-800 rounded-xl flex flex-col justify-between min-h-[120px] active:border-violet-500 shadow-md"
+                  className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden flex flex-col active:border-violet-500 shadow-md group"
                 >
-                  <div>
-                    <span className="text-[9px] text-violet-400 font-bold uppercase">
-                      {tpl.category}
-                    </span>
-                    <h4 className="text-xs font-bold text-white mt-1 line-clamp-2">
-                      {tpl.title}
-                    </h4>
+                  <div className="w-full h-28 bg-[#090a0f] flex items-center justify-center overflow-hidden relative checkerboard-pattern">
+                    <div
+                      className="origin-center pointer-events-none transform shadow-md"
+                      style={{
+                        transform: `scale(${Math.min(130 / (tpl.width || 1080), 95 / (tpl.height || 1080))})`,
+                        width: `${tpl.width}px`,
+                        height: `${tpl.height}px`,
+                      }}
+                    >
+                      <CanvasRenderer
+                        project={tpl as unknown as Project}
+                        selectedId={null}
+                        onSelectElement={() => {}}
+                        onUpdateElement={() => {}}
+                      />
+                    </div>
+                    {tpl.isPremium && (
+                      <span className="absolute top-1.5 left-1.5 text-[8px] font-bold bg-neutral-900/90 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded shadow">
+                        PRO
+                      </span>
+                    )}
                   </div>
-                  <div className="flex items-center justify-between text-[10px] text-neutral-500 mt-2 font-mono">
-                    <span>{tpl.width}×{tpl.height}</span>
-                    <span className="text-violet-400 font-semibold">Use →</span>
+                  <div className="p-2.5 flex flex-col justify-between flex-1 bg-neutral-900">
+                    <div>
+                      <span className="text-[9px] text-violet-400 font-bold uppercase tracking-wider block">
+                        {tpl.category}
+                      </span>
+                      <h4 className="text-[11px] font-bold text-white mt-0.5 line-clamp-1">
+                        {tpl.title}
+                      </h4>
+                    </div>
+                    <div className="flex items-center justify-between text-[9px] text-neutral-500 mt-1.5 font-mono">
+                      <span>{tpl.width}×{tpl.height}</span>
+                      <span className="text-violet-400 font-semibold">Use →</span>
+                    </div>
                   </div>
                 </div>
               ))}
