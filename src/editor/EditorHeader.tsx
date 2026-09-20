@@ -131,11 +131,12 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
         </button>
 
         <button
-          title="Reset Zoom to Fit"
+          title="Fit Canvas to Screen (Ctrl+0)"
           onClick={onResetZoom}
-          className="px-2 py-1 hover:bg-neutral-800 rounded text-xs font-mono text-neutral-300 hover:text-white transition-colors min-w-[44px] text-center"
+          className="px-2 py-1 hover:bg-neutral-800 rounded text-xs font-mono text-neutral-300 hover:text-white transition-colors min-w-[54px] text-center flex items-center gap-1.5"
         >
-          {Math.round(scale * 100)}%
+          <Maximize2 size={11} className="text-violet-400" />
+          <span>{Math.round(scale * 100)}%</span>
         </button>
 
         <button

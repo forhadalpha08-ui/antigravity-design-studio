@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Project, CanvasElement, Template, CanvasBackground, BrandKit, BrushType, CommentThread } from '../types/canvas';
 import { SaveStatus } from '../store/useProjectStore';
 import { CanvasArea } from '../editor/canvas/CanvasArea';
@@ -135,20 +135,24 @@ export const MobileEditor: React.FC<MobileEditorProps> = ({
 
   const { brandKit, addColor, removeColor, updateFonts } = useBrandKitState();
 
-  // Auto-compute optimal initial scale to fit mobile viewport
-  const fitToScreen = () => {
-    const screenW = window.innerWidth - 24;
-    const screenH = window.innerHeight - 220;
+  // Auto-compute optimal scale so template shows 100% full height and width on mobile
+  const fitToScreen = useCallback(() => {
+    // Header is ~56px, bottom bar is ~64px, safe area is ~25px, breathing room ~32px
+    const screenW = Math.max(100, window.innerWidth - 32);
+    const screenH = Math.max(100, window.innerHeight - 170);
     const s = Math.min(screenW / project.width, screenH / project.height);
-    setScale(Math.max(0.12, Math.min(s, 1.2)));
-    setPan({ x: 0, y: 0 });
-  };
+    if (s > 0) {
+      const targetScale = Math.max(0.08, Math.min(Math.round(s * 1000) / 1000, 1.5));
+      setScale(targetScale);
+      setPan({ x: 0, y: 0 });
+    }
+  }, [project.width, project.height]);
 
   useEffect(() => {
     fitToScreen();
     window.addEventListener('resize', fitToScreen);
     return () => window.removeEventListener('resize', fitToScreen);
-  }, [project.width, project.height]);
+  }, [project.id, project.width, project.height, fitToScreen]);
 
   const selectedElement = project.elements.find((el) => el.id === selectedId) || null;
 

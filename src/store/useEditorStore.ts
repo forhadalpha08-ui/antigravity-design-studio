@@ -38,7 +38,7 @@ export type ModalType =
 
 export function useEditorState() {
   const [activeTool, setActiveTool] = useState<ToolType>('select');
-  const [activeDrawer, setActiveDrawer] = useState<DrawerType>('templates');
+  const [activeDrawer, setActiveDrawer] = useState<DrawerType>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [scale, setScale] = useState<number>(0.65);

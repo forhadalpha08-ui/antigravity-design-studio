@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Project, CanvasElement, BrushType, DrawPoint, DrawElement } from '../../types/canvas';
 import { CanvasRenderer } from './CanvasRenderer';
 import { TransformControls } from './TransformControls';
@@ -38,6 +38,7 @@ interface CanvasAreaProps {
   onAlignElements?: (ids: string[], type: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => void;
   onAddComment?: (x: number, y: number) => void;
   onSelectComment?: (id: string) => void;
+  onRegisterFitToScreen?: (fitFn: () => void) => void;
 }
 
 export const CanvasArea: React.FC<CanvasAreaProps> = ({
@@ -70,6 +71,7 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
   onAlignElements,
   onAddComment,
   onSelectComment,
+  onRegisterFitToScreen,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasBoxRef = useRef<HTMLDivElement>(null);
@@ -98,6 +100,84 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
 
   // Active inline text editing state
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
+
+  // Auto-fit design to visible viewport container so full width and height are completely visible
+  const fitToScreen = useCallback(() => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+
+    // Comfortable breathing room: 40px padding on each side on desktop, 16px on mobile
+    const isSmall = rect.width < 640;
+    const paddingX = isSmall ? 16 : 40;
+    const paddingY = isSmall ? 20 : 40;
+
+    const availableW = Math.max(50, rect.width - paddingX * 2);
+    const availableH = Math.max(50, rect.height - paddingY * 2);
+
+    const s = Math.min(availableW / project.width, availableH / project.height);
+    if (s > 0) {
+      const targetScale = Math.max(0.05, Math.min(Math.round(s * 1000) / 1000, 2.5));
+      onScaleChange(targetScale);
+      onPanChange({ x: 0, y: 0 });
+    }
+  }, [project.width, project.height, onScaleChange, onPanChange]);
+
+  // Auto-fit whenever project.id changes (new template opened) or project dimensions change
+  const lastProjectRef = useRef<{ id: string; w: number; h: number }>({ id: '', w: 0, h: 0 });
+
+  useEffect(() => {
+    const isProjectChanged =
+      lastProjectRef.current.id !== project.id ||
+      lastProjectRef.current.w !== project.width ||
+      lastProjectRef.current.h !== project.height;
+
+    if (isProjectChanged) {
+      lastProjectRef.current = { id: project.id, w: project.width, h: project.height };
+
+      // Immediate frame + short timeout guarantees layout dimensions are fully calculated
+      const raf = requestAnimationFrame(() => {
+        fitToScreen();
+      });
+      const timer = setTimeout(() => {
+        fitToScreen();
+      }, 60);
+
+      return () => {
+        cancelAnimationFrame(raf);
+        clearTimeout(timer);
+      };
+    }
+  }, [project.id, project.width, project.height, fitToScreen]);
+
+  // Auto-fit on container resize (e.g. drawer toggle or window resize) if canvas is in default centered state
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const el = containerRef.current;
+    let resizeTimer: any;
+
+    const ro = new ResizeObserver(() => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        if (pan.x === 0 && pan.y === 0) {
+          fitToScreen();
+        }
+      }, 100);
+    });
+
+    ro.observe(el);
+    return () => {
+      clearTimeout(resizeTimer);
+      ro.disconnect();
+    };
+  }, [pan.x, pan.y, fitToScreen]);
+
+  // Expose fitToScreen to parent component (e.g. header zoom button, shortcuts)
+  useEffect(() => {
+    if (onRegisterFitToScreen) {
+      onRegisterFitToScreen(fitToScreen);
+    }
+  }, [onRegisterFitToScreen, fitToScreen]);
 
   // Multi-selection dragging
   const multiDragStartRef = useRef<{

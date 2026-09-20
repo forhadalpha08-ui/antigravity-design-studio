@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Project, CanvasElement, Template, CanvasBackground, CommentThread } from '../types/canvas';
 import { EditorHeader } from './EditorHeader';
 import { LeftSidebar } from './sidebar/LeftSidebar';
@@ -113,6 +113,8 @@ export const StudioEditor: React.FC<StudioEditorProps> = ({
 
   const { brandKit, addColor, removeColor, updateFonts } = useBrandKitState();
 
+  const fitToScreenRef = useRef<() => void>(() => {});
+
   const selectedElement = project.elements.find((el) => el.id === selectedId) || null;
 
   // Keyboard Shortcuts
@@ -162,6 +164,13 @@ export const StudioEditor: React.FC<StudioEditorProps> = ({
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         if (selectedId) onDuplicateElement(selectedId);
+        return;
+      }
+
+      // Fit to Screen: Ctrl+0 / Cmd+0
+      if ((e.ctrlKey || e.metaKey) && e.key === '0') {
+        e.preventDefault();
+        fitToScreenRef.current?.();
         return;
       }
 
@@ -265,7 +274,7 @@ export const StudioEditor: React.FC<StudioEditorProps> = ({
         onRedo={onRedo}
         onZoomIn={zoomIn}
         onZoomOut={zoomOut}
-        onResetZoom={resetView}
+        onResetZoom={() => fitToScreenRef.current?.()}
         onBackToDashboard={onBackToDashboard}
         onUpdateTitle={onUpdateTitle}
         onOpenExportModal={onOpenExportModal}
@@ -296,7 +305,12 @@ export const StudioEditor: React.FC<StudioEditorProps> = ({
           />
         )}
         {activeDrawer === 'templates' && (
-          <TemplatesDrawer onSelectTemplate={onSelectTemplate} />
+          <TemplatesDrawer
+            onSelectTemplate={(tpl) => {
+              onSelectTemplate(tpl);
+              setActiveDrawer(null);
+            }}
+          />
         )}
         {activeDrawer === 'elements' && (
           <ElementsDrawer
@@ -424,6 +438,9 @@ export const StudioEditor: React.FC<StudioEditorProps> = ({
           onUngroupElements={onUngroupElements}
           onAlignElements={onAlignElements}
           onAddComment={handleAddCommentAtCoords}
+          onRegisterFitToScreen={(fn) => {
+            fitToScreenRef.current = fn;
+          }}
         />
 
         {/* Right Inspector Panel */}
