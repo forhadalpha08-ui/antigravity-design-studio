@@ -47,10 +47,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 select-none animate-in fade-in duration-150">
-      <div className="w-full max-w-lg bg-[#12131a] border border-neutral-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm select-none animate-in fade-in duration-150 p-0 sm:p-4">
+      <div className="w-full sm:max-w-lg bg-[#12131a] border border-neutral-800 sm:rounded-2xl rounded-t-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Modal Header */}
-        <div className="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <div className="p-5 border-b border-neutral-800 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-violet-600/20 border border-violet-500/30 flex items-center justify-center text-violet-400">
               <Download size={18} />
@@ -71,13 +71,14 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
         </div>
 
         {/* Modal Content */}
-        <div className="p-6 space-y-5 overflow-y-auto">
+        <div className="p-5 sm:p-6 space-y-5 overflow-y-auto overscroll-contain">
           {/* Format Selection */}
           <div className="space-y-2">
             <label className="text-xs font-semibold text-neutral-300 uppercase tracking-wider">
               File Format
             </label>
-            <div className="grid grid-cols-5 gap-2">
+            {/* 3 cols on mobile, 5 on sm+ */}
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
               {(
                 [
                   { id: 'png', label: 'PNG', desc: 'Lossless' },
@@ -173,7 +174,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
         </div>
 
         {/* Modal Footer */}
-        <div className="p-5 border-t border-neutral-800 bg-neutral-900/40 flex items-center justify-end gap-3">
+        <div
+          className="p-5 border-t border-neutral-800 bg-neutral-900/40 flex items-center justify-end gap-3 flex-shrink-0"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)' }}
+        >
           <button
             onClick={onClose}
             className="px-4 py-2 text-xs font-medium text-neutral-400 hover:text-white transition-colors"

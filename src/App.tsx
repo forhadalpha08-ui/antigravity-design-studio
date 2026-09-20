@@ -39,6 +39,13 @@ export function App() {
     updateCanvasSize,
     updateCanvasBackground,
     applyBrandKit,
+    groupElements,
+    ungroupElements,
+    alignElements,
+    distributeElements,
+    addComment,
+    resolveComment,
+    deleteComment,
   } = useProjectState();
 
   // Navigation & Modals
@@ -49,17 +56,17 @@ export function App() {
   const [previewTemplate, setPreviewTemplate] = useState<Template | null>(null);
   const [isPresentationOpen, setIsPresentationOpen] = useState(false);
 
-  // Responsive breakpoint detection (< 768px is mobile)
+  // Responsive breakpoint detection (< 1024px uses mobile/tablet layout)
   const [isMobile, setIsMobile] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-      return window.innerWidth < 768;
+      return window.innerWidth < 1024;
     }
     return false;
   });
 
   useEffect(() => {
     const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
+      setIsMobile(window.innerWidth < 1024);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -98,6 +105,13 @@ export function App() {
             onUpdateCanvasSize={updateCanvasSize}
             onUpdateCanvasBackground={updateCanvasBackground}
             onApplyBrandKit={applyBrandKit}
+            onGroupElements={groupElements}
+            onUngroupElements={ungroupElements}
+            onAlignElements={alignElements}
+            onDistributeElements={distributeElements}
+            onAddComment={addComment}
+            onResolveComment={resolveComment}
+            onDeleteComment={deleteComment}
           />
         ) : (
           <StudioEditor
@@ -120,6 +134,13 @@ export function App() {
             onUpdateCanvasSize={updateCanvasSize}
             onUpdateCanvasBackground={updateCanvasBackground}
             onApplyBrandKit={applyBrandKit}
+            onGroupElements={groupElements}
+            onUngroupElements={ungroupElements}
+            onAlignElements={alignElements}
+            onDistributeElements={distributeElements}
+            onAddComment={addComment}
+            onResolveComment={resolveComment}
+            onDeleteComment={deleteComment}
           />
         )
       ) : (

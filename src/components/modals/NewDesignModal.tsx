@@ -39,10 +39,10 @@ export const NewDesignModal: React.FC<NewDesignModalProps> = ({ onClose, onCreat
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 select-none animate-in fade-in duration-150">
-      <div className="w-full max-w-xl bg-[#12131a] border border-neutral-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm select-none animate-in fade-in duration-150 p-0 sm:p-4">
+      <div className="w-full sm:max-w-xl bg-[#12131a] border border-neutral-800 sm:rounded-2xl rounded-t-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Modal Header */}
-        <div className="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <div className="p-5 border-b border-neutral-800 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-violet-600/20 border border-violet-500/30 flex items-center justify-center text-violet-400">
               <Plus size={18} />
@@ -122,18 +122,18 @@ export const NewDesignModal: React.FC<NewDesignModalProps> = ({ onClose, onCreat
 
           {/* Preset Sizes */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-neutral-300 uppercase tracking-wider">
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-xs font-semibold text-neutral-300 uppercase tracking-wider flex-shrink-0">
                 Preset Sizes
               </label>
 
-              <div className="flex gap-1">
+              <div className="flex gap-1 overflow-x-auto scrollbar-none flex-shrink-0">
                 {categories.map((cat) => (
                   <button
                     key={cat}
                     type="button"
                     onClick={() => setSelectedCategory(cat)}
-                    className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
+                    className={`px-2 py-0.5 rounded text-[10px] transition-colors whitespace-nowrap flex-shrink-0 ${
                       selectedCategory === cat
                         ? 'bg-violet-600 text-white'
                         : 'bg-neutral-900 text-neutral-400 hover:text-white'
@@ -178,7 +178,7 @@ export const NewDesignModal: React.FC<NewDesignModalProps> = ({ onClose, onCreat
           </div>
 
           {/* Footer Submit */}
-          <div className="pt-3 border-t border-neutral-800 flex items-center justify-end gap-3">
+          <div className="pt-3 border-t border-neutral-800 flex items-center justify-end gap-3" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
             <button
               type="button"
               onClick={onClose}

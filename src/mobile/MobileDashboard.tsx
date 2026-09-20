@@ -140,7 +140,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
       </header>
 
       {/* 2. MAIN SCROLLABLE CONTENT */}
-      <div className="flex-1 overflow-y-auto pb-24 px-4 py-4 space-y-6">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6 overscroll-contain" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)' }}>
         {/* Search Bar (Auto-switches to templates if on home) */}
         <div className="relative">
           <Search size={14} className="absolute left-3.5 top-3 text-neutral-500" />
@@ -744,10 +744,18 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
       </div>
 
       {/* 3. MOBILE BOTTOM 5-TAB NAVIGATION BAR */}
-      <nav className="fixed bottom-0 left-0 right-0 h-16 bg-[#0e0f16]/95 border-t border-neutral-800 flex items-center justify-around px-2 z-40 backdrop-blur-xl">
+      <nav
+        className="fixed bottom-0 left-0 right-0 bg-[#0e0f16]/95 border-t border-neutral-800 flex items-center justify-around z-40 backdrop-blur-xl"
+        style={{
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 4px)',
+          paddingTop: '8px',
+          paddingLeft: 'env(safe-area-inset-left, 0px)',
+          paddingRight: 'env(safe-area-inset-right, 0px)',
+        }}
+      >
         <button
           onClick={() => setCurrentTab('home')}
-          className={`flex flex-col items-center justify-center p-1.5 transition-colors ${
+          className={`flex flex-col items-center justify-center px-3 py-1 transition-colors ${
             currentTab === 'home' ? 'text-violet-400 font-bold' : 'text-neutral-500'
           }`}
         >
@@ -757,7 +765,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
 
         <button
           onClick={() => setCurrentTab('templates')}
-          className={`flex flex-col items-center justify-center p-1.5 transition-colors ${
+          className={`flex flex-col items-center justify-center px-3 py-1 transition-colors ${
             currentTab === 'templates' ? 'text-violet-400 font-bold' : 'text-neutral-500'
           }`}
         >
@@ -767,7 +775,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
 
         <button
           onClick={() => setCurrentTab('projects')}
-          className={`flex flex-col items-center justify-center p-1.5 transition-colors ${
+          className={`flex flex-col items-center justify-center px-3 py-1 transition-colors ${
             currentTab === 'projects' ? 'text-violet-400 font-bold' : 'text-neutral-500'
           }`}
         >
@@ -777,7 +785,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
 
         <button
           onClick={() => setCurrentTab('brand-kit')}
-          className={`flex flex-col items-center justify-center p-1.5 transition-colors ${
+          className={`flex flex-col items-center justify-center px-3 py-1 transition-colors ${
             currentTab === 'brand-kit' ? 'text-violet-400 font-bold' : 'text-neutral-500'
           }`}
         >
@@ -787,7 +795,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
 
         <button
           onClick={() => setCurrentTab('assets')}
-          className={`flex flex-col items-center justify-center p-1.5 transition-colors ${
+          className={`flex flex-col items-center justify-center px-3 py-1 transition-colors ${
             currentTab === 'assets' ? 'text-violet-400 font-bold' : 'text-neutral-500'
           }`}
         >

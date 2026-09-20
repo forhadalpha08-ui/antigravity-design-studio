@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Project, CanvasElement, Template, CanvasBackground, BrandKit } from '../types/canvas';
+import { Project, CanvasElement, Template, CanvasBackground, BrandKit, BrushType, CommentThread } from '../types/canvas';
 import { SaveStatus } from '../store/useProjectStore';
 import { CanvasArea } from '../editor/canvas/CanvasArea';
 import { MobileBottomSheet } from './MobileBottomSheet';
@@ -10,16 +10,27 @@ import { ImagesDrawer } from '../editor/drawers/ImagesDrawer';
 import { BackgroundDrawer } from '../editor/drawers/BackgroundDrawer';
 import { BrandKitDrawer } from '../editor/drawers/BrandKitDrawer';
 import { LayersDrawer } from '../editor/drawers/LayersDrawer';
+import { AiToolsDrawer } from '../editor/drawers/AiToolsDrawer';
+import { DrawDrawer } from '../editor/drawers/DrawDrawer';
+import { ChartsDrawer } from '../editor/drawers/ChartsDrawer';
+import { TablesDrawer } from '../editor/drawers/TablesDrawer';
+import { QrCodeDrawer } from '../editor/drawers/QrCodeDrawer';
+import { CommentsDrawer } from '../editor/drawers/CommentsDrawer';
 import { PositionLayoutSection } from '../editor/inspector/PositionLayoutSection';
 import { TypographySection } from '../editor/inspector/TypographySection';
 import { AppearanceSection } from '../editor/inspector/AppearanceSection';
 import { ImageSection } from '../editor/inspector/ImageSection';
 import { EffectsSection } from '../editor/inspector/EffectsSection';
 import { AnimationSection } from '../editor/inspector/AnimationSection';
+import { ChartSection } from '../editor/inspector/ChartSection';
+import { TableSection } from '../editor/inspector/TableSection';
+import { DrawSection } from '../editor/inspector/DrawSection';
+import { QrCodeSection } from '../editor/inspector/QrCodeSection';
 import { useBrandKitState } from '../store/useBrandKitStore';
 import { SnapGuide } from '../utils/math';
 import { ToolType } from '../store/useEditorStore';
 import { CANVAS_PRESETS } from '../utils/presetSizes';
+import { generateId } from '../utils/id';
 import {
   ChevronLeft,
   Undo2,
@@ -36,12 +47,15 @@ import {
   Sliders,
   ZoomIn,
   ZoomOut,
-  Maximize2,
   Hand,
   MousePointer,
-  Check,
-  Loader2,
   Maximize,
+  Pen,
+  BarChart3,
+  Table as TableIcon,
+  QrCode,
+  Wand2,
+  MessageSquare,
 } from 'lucide-react';
 
 interface MobileEditorProps {
@@ -64,6 +78,13 @@ interface MobileEditorProps {
   onUpdateCanvasSize: (w: number, h: number) => void;
   onUpdateCanvasBackground: (bg: CanvasBackground) => void;
   onApplyBrandKit: (brandKit: BrandKit) => void;
+  onGroupElements?: (ids: string[]) => void;
+  onUngroupElements?: (groupId: string) => void;
+  onAlignElements?: (ids: string[], type: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => void;
+  onDistributeElements?: (ids: string[], axis: 'horizontal' | 'vertical') => void;
+  onAddComment?: (comment: CommentThread) => void;
+  onResolveComment?: (id: string) => void;
+  onDeleteComment?: (id: string) => void;
 }
 
 export const MobileEditor: React.FC<MobileEditorProps> = ({
@@ -86,13 +107,27 @@ export const MobileEditor: React.FC<MobileEditorProps> = ({
   onUpdateCanvasSize,
   onUpdateCanvasBackground,
   onApplyBrandKit,
+  onGroupElements,
+  onUngroupElements,
+  onAlignElements,
+  onDistributeElements,
+  onAddComment,
+  onResolveComment,
+  onDeleteComment,
 }) => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [activeDrawer, setActiveDrawer] = useState<string | null>(null);
   const [isInspectorOpen, setIsInspectorOpen] = useState(false);
   const [inspectorTab, setInspectorTab] = useState<'style' | 'font' | 'position' | 'effects' | 'motion'>('style');
   const [activeTool, setActiveTool] = useState<ToolType>('select');
   const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
+
+  // Brush settings for freehand drawing
+  const [brushType, setBrushType] = useState<BrushType>('pen');
+  const [brushColor, setBrushColor] = useState<string>('#8b5cf6');
+  const [brushSize, setBrushSize] = useState<number>(4);
+  const [showComments, setShowComments] = useState<boolean>(true);
 
   // Scale & Pan
   const [scale, setScale] = useState(0.35);
@@ -115,10 +150,11 @@ export const MobileEditor: React.FC<MobileEditorProps> = ({
     return () => window.removeEventListener('resize', fitToScreen);
   }, [project.width, project.height]);
 
-  const selectedElement = project.elements.find((el) => el.id === selectedId);
+  const selectedElement = project.elements.find((el) => el.id === selectedId) || null;
 
   const handleSelect = (id: string | null) => {
     setSelectedId(id || null);
+    setSelectedIds(id ? [id] : []);
     if (id) {
       const el = project.elements.find((e) => e.id === id);
       if (el?.type === 'text') {
@@ -136,10 +172,31 @@ export const MobileEditor: React.FC<MobileEditorProps> = ({
     setPan({ x: 0, y: 0 });
   };
 
+  const handleAddCommentAtCoords = (x: number, y: number) => {
+    const text = window.prompt('Enter comment or design feedback:');
+    if (text && text.trim() && onAddComment) {
+      onAddComment({
+        id: generateId('cmt'),
+        x,
+        y,
+        author: 'Mobile User',
+        avatarColor: '#8b5cf6',
+        text: text.trim(),
+        createdAt: Date.now(),
+        resolved: false,
+        replies: [],
+      });
+      setActiveDrawer('comments');
+    }
+  };
+
   return (
     <div className="flex flex-col w-screen h-screen bg-[#07080c] select-none overflow-hidden relative">
       {/* 1. MOBILE TOP HEADER */}
-      <header className="h-14 w-full bg-[#0d0e14] border-b border-neutral-800 flex items-center justify-between px-2.5 z-30 flex-shrink-0">
+      <header
+        className="h-14 lg:h-16 w-full bg-[#0d0e14] border-b border-neutral-800 flex items-center justify-between px-3 sm:px-4 z-30 flex-shrink-0"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      >
         <div className="flex items-center gap-1.5 min-w-0">
           <button
             onClick={onBack}
@@ -153,11 +210,11 @@ export const MobileEditor: React.FC<MobileEditorProps> = ({
             type="text"
             value={project.title}
             onChange={(e) => onUpdateTitle(e.target.value)}
-            className="bg-transparent text-xs font-bold text-white outline-none w-24 sm:w-36 truncate focus:bg-neutral-900 px-1.5 py-0.5 rounded"
+            className="bg-transparent text-xs font-bold text-white outline-none w-28 sm:w-40 md:w-56 truncate focus:bg-neutral-900 px-1.5 py-0.5 rounded"
           />
 
           {/* Save Status Indicator */}
-          <div className="hidden xs:flex items-center text-[10px] text-neutral-500">
+          <div className="flex items-center text-[10px] text-neutral-500">
             {saveStatus === 'saved' && <span className="text-emerald-400">● Saved</span>}
             {saveStatus === 'saving' && <span className="text-violet-400 animate-pulse">● Saving</span>}
             {saveStatus === 'unsaved' && <span className="text-amber-400">● Unsaved</span>}
@@ -188,7 +245,7 @@ export const MobileEditor: React.FC<MobileEditorProps> = ({
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <button
             onClick={() => setActiveDrawer('resize')}
-            className="px-2 py-1 bg-neutral-900 border border-neutral-800 rounded-md text-[10px] font-mono text-neutral-400 active:border-violet-500"
+            className="px-2 py-1 bg-neutral-900 border border-neutral-800 rounded-md text-[10px] font-mono text-neutral-400 active:border-violet-500 hidden sm:block"
             title="Change Canvas Size"
           >
             {project.width}×{project.height}
@@ -212,25 +269,39 @@ export const MobileEditor: React.FC<MobileEditorProps> = ({
         </div>
       </header>
 
-      {/* 2. FULL INTERACTIVE CANVAS VIEWPORT (Identical to Desktop) */}
-      <main className="flex-1 w-full h-full relative overflow-hidden bg-[#07080c]">
+      {/* 2. FULL INTERACTIVE CANVAS VIEWPORT */}
+      <main
+        className="flex-1 w-full relative overflow-hidden bg-[#07080c]"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 68px)' }}
+      >
         <CanvasArea
           project={project}
           scale={scale}
           pan={pan}
           activeTool={activeTool}
           selectedId={selectedId}
+          selectedIds={selectedIds}
           snapGuides={snapGuides}
           isPlayingAnimation={false}
+          brushType={brushType}
+          brushColor={brushColor}
+          brushSize={brushSize}
+          showComments={showComments}
           onScaleChange={setScale}
           onPanChange={setPan}
           onSelectElement={handleSelect}
+          onSetSelection={setSelectedIds}
           onUpdateElement={onUpdateElement}
+          onAddElement={onAddElement}
           onDuplicateElement={onDuplicateElement}
           onDeleteElement={onDeleteElement}
           onReorderLayer={onReorderLayer}
           onSetGuides={setSnapGuides}
           onOpenEdit={() => setIsInspectorOpen(true)}
+          onGroupElements={onGroupElements}
+          onUngroupElements={onUngroupElements}
+          onAlignElements={onAlignElements}
+          onAddComment={handleAddCommentAtCoords}
         />
 
         {/* FLOATING MOBILE CANVAS VIEW CONTROLS */}
@@ -245,6 +316,21 @@ export const MobileEditor: React.FC<MobileEditorProps> = ({
             title={activeTool === 'hand' ? 'Select Mode' : 'Pan Canvas'}
           >
             {activeTool === 'hand' ? <Hand size={16} /> : <MousePointer size={16} />}
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTool((t) => (t === 'draw' ? 'select' : 'draw'));
+              setActiveDrawer('draw');
+            }}
+            className={`p-2 rounded-lg transition-colors ${
+              activeTool === 'draw'
+                ? 'bg-violet-600 text-white shadow'
+                : 'text-neutral-400 active:text-white'
+            }`}
+            title="Freehand Draw"
+          >
+            <Pen size={16} />
           </button>
 
           <div className="w-full h-[1px] bg-neutral-800 my-0.5" />
@@ -283,62 +369,147 @@ export const MobileEditor: React.FC<MobileEditorProps> = ({
         </div>
       </main>
 
-      {/* 3. FLOATING BOTTOM TOOL DOCK (All Desktop Drawers & Tools) */}
-      <footer className="fixed bottom-3 left-2 right-2 z-40 bg-neutral-900/95 border border-neutral-700/80 backdrop-blur-xl rounded-2xl shadow-2xl p-1.5 flex items-center justify-around overflow-x-auto scrollbar-none">
+      {/* 3. FLOATING BOTTOM TOOL DOCK */}
+      <footer
+        className="fixed bottom-0 left-0 right-0 z-40 bg-neutral-900/95 border-t border-neutral-700/80 backdrop-blur-xl shadow-2xl flex items-center justify-around overflow-x-auto scrollbar-none"
+        style={{
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 6px)',
+          paddingTop: '6px',
+          paddingLeft: 'env(safe-area-inset-left, 0px)',
+          paddingRight: 'env(safe-area-inset-right, 0px)',
+        }}
+      >
         <button
-          onClick={() => setActiveDrawer('templates')}
-          className="flex flex-col items-center justify-center py-1 px-2 text-neutral-400 active:text-violet-400 min-w-[52px]"
+          onClick={() => setActiveDrawer(activeDrawer === 'ai-tools' ? null : 'ai-tools')}
+          className={`flex flex-col items-center justify-center py-1 px-2 min-w-[50px] transition-colors ${
+            activeDrawer === 'ai-tools' ? 'text-violet-400' : 'text-neutral-400 active:text-violet-400'
+          }`}
         >
-          <LayoutTemplate size={18} />
+          <Wand2 size={17} className="text-violet-400" />
+          <span className="text-[9px] mt-0.5 font-bold text-violet-400">AI Studio</span>
+        </button>
+
+        <button
+          onClick={() => setActiveDrawer(activeDrawer === 'templates' ? null : 'templates')}
+          className={`flex flex-col items-center justify-center py-1 px-2 min-w-[50px] transition-colors ${
+            activeDrawer === 'templates' ? 'text-violet-400' : 'text-neutral-400 active:text-violet-400'
+          }`}
+        >
+          <LayoutTemplate size={17} />
           <span className="text-[9px] mt-0.5 font-medium">Templates</span>
         </button>
 
         <button
-          onClick={() => setActiveDrawer('elements')}
-          className="flex flex-col items-center justify-center py-1 px-2 text-neutral-400 active:text-violet-400 min-w-[52px]"
+          onClick={() => setActiveDrawer(activeDrawer === 'elements' ? null : 'elements')}
+          className={`flex flex-col items-center justify-center py-1 px-2 min-w-[50px] transition-colors ${
+            activeDrawer === 'elements' ? 'text-violet-400' : 'text-neutral-400 active:text-violet-400'
+          }`}
         >
-          <Shapes size={18} />
+          <Shapes size={17} />
           <span className="text-[9px] mt-0.5 font-medium">Shapes</span>
         </button>
 
         <button
-          onClick={() => setActiveDrawer('text')}
-          className="flex flex-col items-center justify-center py-1 px-2 text-neutral-400 active:text-violet-400 min-w-[52px]"
+          onClick={() => setActiveDrawer(activeDrawer === 'text' ? null : 'text')}
+          className={`flex flex-col items-center justify-center py-1 px-2 min-w-[50px] transition-colors ${
+            activeDrawer === 'text' ? 'text-violet-400' : 'text-neutral-400 active:text-violet-400'
+          }`}
         >
-          <Type size={18} />
+          <Type size={17} />
           <span className="text-[9px] mt-0.5 font-medium">Text</span>
         </button>
 
         <button
-          onClick={() => setActiveDrawer('images')}
-          className="flex flex-col items-center justify-center py-1 px-2 text-neutral-400 active:text-violet-400 min-w-[52px]"
+          onClick={() => {
+            setActiveDrawer(activeDrawer === 'draw' ? null : 'draw');
+            setActiveTool('draw');
+          }}
+          className={`flex flex-col items-center justify-center py-1 px-2 min-w-[50px] transition-colors ${
+            activeDrawer === 'draw' ? 'text-violet-400' : 'text-neutral-400 active:text-violet-400'
+          }`}
         >
-          <ImageIcon size={18} />
+          <Pen size={17} />
+          <span className="text-[9px] mt-0.5 font-medium">Draw</span>
+        </button>
+
+        <button
+          onClick={() => setActiveDrawer(activeDrawer === 'charts' ? null : 'charts')}
+          className={`flex flex-col items-center justify-center py-1 px-2 min-w-[50px] transition-colors ${
+            activeDrawer === 'charts' ? 'text-violet-400' : 'text-neutral-400 active:text-violet-400'
+          }`}
+        >
+          <BarChart3 size={17} />
+          <span className="text-[9px] mt-0.5 font-medium">Charts</span>
+        </button>
+
+        <button
+          onClick={() => setActiveDrawer(activeDrawer === 'tables' ? null : 'tables')}
+          className={`flex flex-col items-center justify-center py-1 px-2 min-w-[50px] transition-colors ${
+            activeDrawer === 'tables' ? 'text-violet-400' : 'text-neutral-400 active:text-violet-400'
+          }`}
+        >
+          <TableIcon size={17} />
+          <span className="text-[9px] mt-0.5 font-medium">Tables</span>
+        </button>
+
+        <button
+          onClick={() => setActiveDrawer(activeDrawer === 'qr' ? null : 'qr')}
+          className={`flex flex-col items-center justify-center py-1 px-2 min-w-[50px] transition-colors ${
+            activeDrawer === 'qr' ? 'text-violet-400' : 'text-neutral-400 active:text-violet-400'
+          }`}
+        >
+          <QrCode size={17} />
+          <span className="text-[9px] mt-0.5 font-medium">QR Code</span>
+        </button>
+
+        <button
+          onClick={() => setActiveDrawer(activeDrawer === 'images' ? null : 'images')}
+          className={`flex flex-col items-center justify-center py-1 px-2 min-w-[50px] transition-colors ${
+            activeDrawer === 'images' ? 'text-violet-400' : 'text-neutral-400 active:text-violet-400'
+          }`}
+        >
+          <ImageIcon size={17} />
           <span className="text-[9px] mt-0.5 font-medium">Photos</span>
         </button>
 
         <button
-          onClick={() => setActiveDrawer('background')}
-          className="flex flex-col items-center justify-center py-1 px-2 text-neutral-400 active:text-violet-400 min-w-[52px]"
+          onClick={() => setActiveDrawer(activeDrawer === 'background' ? null : 'background')}
+          className={`flex flex-col items-center justify-center py-1 px-2 min-w-[50px] transition-colors ${
+            activeDrawer === 'background' ? 'text-violet-400' : 'text-neutral-400 active:text-violet-400'
+          }`}
         >
-          <Sparkles size={18} />
-          <span className="text-[9px] mt-0.5 font-medium">BG Studio</span>
+          <Sparkles size={17} />
+          <span className="text-[9px] mt-0.5 font-medium">BG</span>
         </button>
 
         <button
-          onClick={() => setActiveDrawer('brand-kit')}
-          className="flex flex-col items-center justify-center py-1 px-2 text-neutral-400 active:text-violet-400 min-w-[52px]"
+          onClick={() => setActiveDrawer(activeDrawer === 'brand-kit' ? null : 'brand-kit')}
+          className={`flex flex-col items-center justify-center py-1 px-2 min-w-[50px] transition-colors ${
+            activeDrawer === 'brand-kit' ? 'text-violet-400' : 'text-neutral-400 active:text-violet-400'
+          }`}
         >
-          <Palette size={18} />
-          <span className="text-[9px] mt-0.5 font-medium">Brand Kit</span>
+          <Palette size={17} />
+          <span className="text-[9px] mt-0.5 font-medium">Brand</span>
         </button>
 
         <button
-          onClick={() => setActiveDrawer('layers')}
-          className="flex flex-col items-center justify-center py-1 px-2 text-neutral-400 active:text-violet-400 min-w-[52px]"
+          onClick={() => setActiveDrawer(activeDrawer === 'layers' ? null : 'layers')}
+          className={`flex flex-col items-center justify-center py-1 px-2 min-w-[50px] transition-colors ${
+            activeDrawer === 'layers' ? 'text-violet-400' : 'text-neutral-400 active:text-violet-400'
+          }`}
         >
-          <Layers size={18} />
+          <Layers size={17} />
           <span className="text-[9px] mt-0.5 font-medium">Layers</span>
+        </button>
+
+        <button
+          onClick={() => setActiveDrawer(activeDrawer === 'comments' ? null : 'comments')}
+          className={`flex flex-col items-center justify-center py-1 px-2 min-w-[50px] transition-colors ${
+            activeDrawer === 'comments' ? 'text-violet-400' : 'text-neutral-400 active:text-violet-400'
+          }`}
+        >
+          <MessageSquare size={17} />
+          <span className="text-[9px] mt-0.5 font-medium">Notes</span>
         </button>
 
         {selectedElement ? (
@@ -346,42 +517,61 @@ export const MobileEditor: React.FC<MobileEditorProps> = ({
             onClick={() => setIsInspectorOpen(true)}
             className="flex flex-col items-center justify-center py-1 px-2.5 bg-violet-600/30 text-violet-300 border border-violet-500/50 rounded-xl min-w-[54px] animate-pulse"
           >
-            <Sliders size={18} />
+            <Sliders size={17} />
             <span className="text-[9px] mt-0.5 font-bold">Edit</span>
           </button>
-        ) : (
-          <button
-            onClick={() => setActiveDrawer('resize')}
-            className="flex flex-col items-center justify-center py-1 px-2 text-neutral-400 active:text-violet-400 min-w-[52px]"
-          >
-            <Maximize2 size={18} />
-            <span className="text-[9px] mt-0.5 font-medium">Resize</span>
-          </button>
-        )}
+        ) : null}
       </footer>
 
-      {/* 4. DRAWER BOTTOM SHEET (Templates, Elements, Text, Images, BG Studio, Brand Kit, Layers, Resize) */}
+      {/* 4. BOTTOM SHEET DRAWERS */}
       <MobileBottomSheet
-        isOpen={activeDrawer !== null}
+        isOpen={Boolean(activeDrawer)}
         onClose={() => setActiveDrawer(null)}
         title={
-          activeDrawer === 'templates'
-            ? 'Select Template'
+          activeDrawer === 'ai-tools'
+            ? 'AI Design Studio'
+            : activeDrawer === 'templates'
+            ? 'Templates Gallery'
             : activeDrawer === 'elements'
-            ? 'Shapes & Icons'
+            ? 'Geometric & Abstract Elements'
             : activeDrawer === 'text'
-            ? 'Typography'
+            ? 'Add Typography'
+            : activeDrawer === 'draw'
+            ? 'Draw & Sketch Brush'
+            : activeDrawer === 'charts'
+            ? 'Interactive Charts'
+            : activeDrawer === 'tables'
+            ? 'Table Generator'
+            : activeDrawer === 'qr'
+            ? 'QR Code Generator'
             : activeDrawer === 'images'
-            ? 'Photos & Uploads'
+            ? 'Stock & Media Uploads'
             : activeDrawer === 'background'
             ? 'Background Studio'
             : activeDrawer === 'brand-kit'
             ? 'Brand Kit'
             : activeDrawer === 'resize'
             ? 'Canvas Dimensions'
+            : activeDrawer === 'comments'
+            ? 'Design Feedback'
             : 'Layers'
         }
       >
+        {activeDrawer === 'ai-tools' && (
+          <AiToolsDrawer
+            canvasWidth={project.width}
+            canvasHeight={project.height}
+            elements={project.elements}
+            selectedElement={selectedElement}
+            onAddElement={(el) => {
+              onAddElement(el);
+              setActiveDrawer(null);
+              setSelectedId(el.id);
+            }}
+            onUpdateElement={onUpdateElement}
+            onUpdateBackground={onUpdateCanvasBackground}
+          />
+        )}
         {activeDrawer === 'templates' && (
           <TemplatesDrawer
             onSelectTemplate={(tpl) => {
@@ -405,6 +595,54 @@ export const MobileEditor: React.FC<MobileEditorProps> = ({
           <TextDrawer
             canvasWidth={project.width}
             canvasHeight={project.height}
+            onAddElement={(el) => {
+              onAddElement(el);
+              setActiveDrawer(null);
+              setSelectedId(el.id);
+            }}
+          />
+        )}
+        {activeDrawer === 'draw' && (
+          <DrawDrawer
+            brushType={brushType}
+            brushColor={brushColor}
+            brushSize={brushSize}
+            activeTool={activeTool}
+            onSetBrushType={setBrushType}
+            onSetBrushColor={setBrushColor}
+            onSetBrushSize={setBrushSize}
+            onSelectTool={setActiveTool}
+          />
+        )}
+        {activeDrawer === 'charts' && (
+          <ChartsDrawer
+            canvasWidth={project.width}
+            canvasHeight={project.height}
+            elementsCount={project.elements.length}
+            onAddElement={(el) => {
+              onAddElement(el);
+              setActiveDrawer(null);
+              setSelectedId(el.id);
+            }}
+          />
+        )}
+        {activeDrawer === 'tables' && (
+          <TablesDrawer
+            canvasWidth={project.width}
+            canvasHeight={project.height}
+            elementsCount={project.elements.length}
+            onAddElement={(el) => {
+              onAddElement(el);
+              setActiveDrawer(null);
+              setSelectedId(el.id);
+            }}
+          />
+        )}
+        {activeDrawer === 'qr' && (
+          <QrCodeDrawer
+            canvasWidth={project.width}
+            canvasHeight={project.height}
+            elementsCount={project.elements.length}
             onAddElement={(el) => {
               onAddElement(el);
               setActiveDrawer(null);
@@ -451,6 +689,17 @@ export const MobileEditor: React.FC<MobileEditorProps> = ({
             onDuplicateElement={onDuplicateElement}
             onDeleteElement={onDeleteElement}
             onReorderLayer={onReorderLayer}
+          />
+        )}
+        {activeDrawer === 'comments' && (
+          <CommentsDrawer
+            comments={project.comments}
+            showComments={showComments}
+            onToggleShowComments={() => setShowComments(!showComments)}
+            onSelectComment={() => {}}
+            onAddComment={onAddComment || (() => {})}
+            onResolveComment={onResolveComment || (() => {})}
+            onDeleteComment={onDeleteComment || (() => {})}
           />
         )}
         {activeDrawer === 'resize' && (
@@ -511,7 +760,7 @@ export const MobileEditor: React.FC<MobileEditorProps> = ({
         )}
       </MobileBottomSheet>
 
-      {/* 5. FULL INSPECTOR BOTTOM SHEET (Every feature from Desktop) */}
+      {/* 5. FULL INSPECTOR BOTTOM SHEET */}
       {selectedElement ? (
         <MobileBottomSheet
           isOpen={isInspectorOpen}
@@ -607,6 +856,30 @@ export const MobileEditor: React.FC<MobileEditorProps> = ({
               )}
               {selectedElement.type === 'text' && (
                 <TypographySection
+                  element={selectedElement as any}
+                  onUpdate={(updates) => onUpdateElement(selectedElement.id, updates)}
+                />
+              )}
+              {selectedElement.type === 'chart' && (
+                <ChartSection
+                  element={selectedElement as any}
+                  onUpdate={(updates) => onUpdateElement(selectedElement.id, updates)}
+                />
+              )}
+              {selectedElement.type === 'table' && (
+                <TableSection
+                  element={selectedElement as any}
+                  onUpdate={(updates) => onUpdateElement(selectedElement.id, updates)}
+                />
+              )}
+              {selectedElement.type === 'draw' && (
+                <DrawSection
+                  element={selectedElement as any}
+                  onUpdate={(updates) => onUpdateElement(selectedElement.id, updates)}
+                />
+              )}
+              {selectedElement.type === 'qr-code' && (
+                <QrCodeSection
                   element={selectedElement as any}
                   onUpdate={(updates) => onUpdateElement(selectedElement.id, updates)}
                 />

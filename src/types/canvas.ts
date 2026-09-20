@@ -1,4 +1,14 @@
-export type ElementType = 'text' | 'shape' | 'image' | 'line' | 'icon' | 'badge';
+export type ElementType = 
+  | 'text' 
+  | 'shape' 
+  | 'image' 
+  | 'line' 
+  | 'icon' 
+  | 'badge'
+  | 'draw'
+  | 'chart'
+  | 'table'
+  | 'qr-code';
 
 export type ShapeType = 
   | 'rectangle' 
@@ -76,6 +86,7 @@ export interface BaseElement {
   zIndex: number;
   locked: boolean;
   hidden: boolean;
+  groupId?: string; // For multi-element grouping
   shadow?: ShadowEffect;
   glow?: GlowEffect;
   blur?: number; // backdrop / element blur
@@ -143,12 +154,102 @@ export interface IconElement extends BaseElement {
   strokeWidth?: number;
 }
 
+// 1. Draw / Pen Tool
+export type BrushType = 'pen' | 'marker' | 'highlighter' | 'eraser';
+
+export interface DrawPoint {
+  x: number;
+  y: number;
+}
+
+export interface DrawElement extends BaseElement {
+  type: 'draw';
+  points: DrawPoint[];
+  strokeColor: string;
+  strokeWidth: number;
+  brushType: BrushType;
+  pathData?: string;
+}
+
+// 2. Charts
+export type ChartType = 'bar' | 'column' | 'donut' | 'pie' | 'line' | 'area' | 'progress';
+
+export interface ChartDataPoint {
+  label: string;
+  value: number;
+  color?: string;
+}
+
+export interface ChartElement extends BaseElement {
+  type: 'chart';
+  chartType: ChartType;
+  data: ChartDataPoint[];
+  title?: string;
+  showLegend?: boolean;
+  showValues?: boolean;
+}
+
+// 3. Tables
+export interface TableCell {
+  text: string;
+  bg?: string;
+  color?: string;
+  bold?: boolean;
+  align?: 'left' | 'center' | 'right';
+}
+
+export interface TableElement extends BaseElement {
+  type: 'table';
+  rows: number;
+  cols: number;
+  cells: TableCell[][];
+  hasHeaderRow?: boolean;
+  headerBg?: string;
+  headerColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+}
+
+// 4. QR Codes
+export interface QrCodeElement extends BaseElement {
+  type: 'qr-code';
+  data: string;
+  fgColor: string;
+  bgColor: string;
+  margin?: number;
+}
+
+// 5. Comments & Annotations
+export interface CommentReply {
+  id: string;
+  author: string;
+  avatarColor: string;
+  text: string;
+  createdAt: number;
+}
+
+export interface CommentThread {
+  id: string;
+  x: number;
+  y: number;
+  author: string;
+  avatarColor: string;
+  text: string;
+  createdAt: number;
+  resolved: boolean;
+  replies?: CommentReply[];
+}
+
 export type CanvasElement = 
   | TextElement 
   | ShapeElement 
   | ImageElement 
   | LineElement 
-  | IconElement;
+  | IconElement
+  | DrawElement
+  | ChartElement
+  | TableElement
+  | QrCodeElement;
 
 export type BackgroundType = 
   | 'solid'
@@ -198,6 +299,7 @@ export interface Project {
   createdAt: number;
   updatedAt: number;
   isFavorite?: boolean;
+  comments?: CommentThread[];
 }
 
 export interface Template {

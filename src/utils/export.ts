@@ -1,5 +1,17 @@
 import { jsPDF } from 'jspdf';
-import { Project, CanvasElement, TextElement, ShapeElement, ImageElement, LineElement } from '../types/canvas';
+import {
+  Project,
+  CanvasElement,
+  TextElement,
+  ShapeElement,
+  ImageElement,
+  LineElement,
+  DrawElement,
+  ChartElement,
+  TableElement,
+  QrCodeElement,
+} from '../types/canvas';
+import { generateQrCode } from './qr';
 
 export type ExportFormat = 'png' | 'jpg' | 'webp' | 'svg' | 'pdf';
 
@@ -150,6 +162,14 @@ export async function renderProjectToCanvas(
       await drawImage(ctx, el);
     } else if (el.type === 'line') {
       drawLine(ctx, el);
+    } else if (el.type === 'draw') {
+      drawStroke(ctx, el as DrawElement);
+    } else if (el.type === 'chart') {
+      drawChart(ctx, el as ChartElement);
+    } else if (el.type === 'table') {
+      drawTable(ctx, el as TableElement);
+    } else if (el.type === 'qr-code') {
+      drawQrCode(ctx, el as QrCodeElement);
     }
 
     ctx.restore();
@@ -389,6 +409,135 @@ function drawLine(ctx: CanvasRenderingContext2D, el: LineElement) {
   ctx.restore();
 }
 
+function drawStroke(ctx: CanvasRenderingContext2D, el: DrawElement) {
+  const pts = el.points;
+  if (!pts || pts.length === 0) return;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length - 1; i++) {
+    const xc = (pts[i].x + pts[i + 1].x) / 2;
+    const yc = (pts[i].y + pts[i + 1].y) / 2;
+    ctx.quadraticCurveTo(pts[i].x, pts[i].y, xc, yc);
+  }
+  if (pts.length > 1) {
+    ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+  }
+
+  ctx.strokeStyle = el.strokeColor || '#8b5cf6';
+  ctx.lineWidth = el.strokeWidth || 4;
+  ctx.lineCap = el.brushType === 'highlighter' || el.brushType === 'marker' ? 'square' : 'round';
+  ctx.lineJoin = 'round';
+  if (el.brushType === 'highlighter') {
+    ctx.globalAlpha *= 0.45;
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawQrCode(ctx: CanvasRenderingContext2D, el: QrCodeElement) {
+  const size = Math.min(el.width, el.height);
+  const qr = generateQrCode(el.data || 'https://af-canvas.app', size, el.fgColor, el.bgColor);
+  const cellSize = size / qr.matrixSize;
+
+  ctx.save();
+  ctx.fillStyle = el.bgColor || '#000000';
+  ctx.fillRect(0, 0, size, size);
+
+  ctx.fillStyle = el.fgColor || '#ffffff';
+  for (let r = 0; r < qr.matrixSize; r++) {
+    for (let c = 0; c < qr.matrixSize; c++) {
+      if (qr.matrix[r][c]) {
+        ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+      }
+    }
+  }
+  ctx.restore();
+}
+
+function drawChart(ctx: CanvasRenderingContext2D, el: ChartElement) {
+  ctx.save();
+  // Card BG
+  ctx.fillStyle = '#111218';
+  ctx.beginPath();
+  ctx.roundRect(0, 0, el.width, el.height, 8);
+  ctx.fill();
+  ctx.strokeStyle = '#27272a';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Title
+  if (el.title) {
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 12px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(el.title, el.width / 2, 22);
+  }
+
+  const data = el.data || [];
+  if (data.length > 0) {
+    const maxVal = Math.max(...data.map((d) => d.value), 1);
+    const chartAreaY = el.title ? 36 : 16;
+    const chartAreaH = el.height - chartAreaY - 24;
+    const colW = (el.width - 40) / data.length;
+
+    data.forEach((d, i) => {
+      const x = 20 + i * colW + colW * 0.15;
+      const barW = colW * 0.7;
+      const h = (d.value / maxVal) * chartAreaH;
+      const y = chartAreaY + chartAreaH - h;
+
+      ctx.fillStyle = d.color || '#8b5cf6';
+      ctx.beginPath();
+      ctx.roundRect(x, y, barW, Math.max(2, h), 3);
+      ctx.fill();
+
+      // Label
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = '9px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(d.label.slice(0, 5), x + barW / 2, chartAreaY + chartAreaH + 14);
+    });
+  }
+  ctx.restore();
+}
+
+function drawTable(ctx: CanvasRenderingContext2D, el: TableElement) {
+  const rows = el.rows || 3;
+  const cols = el.cols || 3;
+  const colW = el.width / cols;
+  const rowH = el.height / rows;
+
+  ctx.save();
+  for (let r = 0; r < rows; r++) {
+    const isHeader = el.hasHeaderRow && r === 0;
+    for (let c = 0; c < cols; c++) {
+      const cell = el.cells?.[r]?.[c] || { text: '' };
+      const cellBg = isHeader
+        ? el.headerBg || '#1e1b4b'
+        : cell.bg || (r % 2 === 0 ? '#111218' : '#181920');
+
+      ctx.fillStyle = cellBg;
+      ctx.fillRect(c * colW, r * rowH, colW, rowH);
+
+      ctx.strokeStyle = el.borderColor || '#374151';
+      ctx.lineWidth = el.borderWidth || 1;
+      ctx.strokeRect(c * colW, r * rowH, colW, rowH);
+
+      const cellText = cell.text || '';
+      ctx.fillStyle = isHeader ? el.headerColor || '#ffffff' : cell.color || '#e5e7eb';
+      ctx.font = `${isHeader || cell.bold ? 'bold' : 'normal'} 10px Inter, sans-serif`;
+      ctx.textAlign = cell.align || (isHeader ? 'center' : 'left');
+      ctx.textBaseline = 'middle';
+
+      const tx = cell.align === 'center' || isHeader ? c * colW + colW / 2 : c * colW + 8;
+      ctx.fillText(cellText, tx, r * rowH + rowH / 2, colW - 12);
+    }
+  }
+  ctx.restore();
+}
+
 // Generate Standalone Vector SVG String
 export function generateSvgString(project: Project): string {
   const elementsSvg = project.elements
@@ -407,6 +556,27 @@ export function generateSvgString(project: Project): string {
       if (el.type === 'image') {
         const img = el as ImageElement;
         return `<g ${transform}><image href="${img.src}" width="${img.width}" height="${img.height}" preserveAspectRatio="none" /></g>`;
+      }
+      if (el.type === 'draw') {
+        const d = el as DrawElement;
+        let dPath = '';
+        if (d.points && d.points.length > 0) {
+          dPath = `M ${d.points[0].x} ${d.points[0].y}`;
+          for (let i = 1; i < d.points.length - 1; i++) {
+            const xc = (d.points[i].x + d.points[i + 1].x) / 2;
+            const yc = (d.points[i].y + d.points[i + 1].y) / 2;
+            dPath += ` Q ${d.points[i].x} ${d.points[i].y}, ${xc} ${yc}`;
+          }
+          if (d.points.length > 1) {
+            dPath += ` L ${d.points[d.points.length - 1].x} ${d.points[d.points.length - 1].y}`;
+          }
+        }
+        return `<g ${transform}><path d="${dPath}" fill="none" stroke="${d.strokeColor || '#8b5cf6'}" stroke-width="${d.strokeWidth || 4}" stroke-linecap="round" stroke-linejoin="round" /></g>`;
+      }
+      if (el.type === 'qr-code') {
+        const qr = el as QrCodeElement;
+        const qrObj = generateQrCode(qr.data, Math.min(qr.width, qr.height), qr.fgColor, qr.bgColor);
+        return `<g ${transform}>${qrObj.svgString}</g>`;
       }
       return '';
     })

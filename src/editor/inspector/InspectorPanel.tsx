@@ -6,6 +6,10 @@ import { AppearanceSection } from './AppearanceSection';
 import { ImageSection } from './ImageSection';
 import { EffectsSection } from './EffectsSection';
 import { AnimationSection } from './AnimationSection';
+import { ChartSection } from './ChartSection';
+import { TableSection } from './TableSection';
+import { DrawSection } from './DrawSection';
+import { QrCodeSection } from './QrCodeSection';
 import { CANVAS_PRESETS } from '../../utils/presetSizes';
 import { Lock, Unlock, Trash2, Sliders } from 'lucide-react';
 
@@ -218,6 +222,38 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
         {selectedElement.type === 'image' && (
           <ImageSection
             element={selectedElement as ImageElement}
+            onUpdate={(updates) => onUpdateElement(selectedElement.id, updates)}
+          />
+        )}
+
+        {/* Chart specific inspector */}
+        {selectedElement.type === 'chart' && (
+          <ChartSection
+            element={selectedElement as any}
+            onUpdate={(updates) => onUpdateElement(selectedElement.id, updates)}
+          />
+        )}
+
+        {/* Table specific inspector */}
+        {selectedElement.type === 'table' && (
+          <TableSection
+            element={selectedElement as any}
+            onUpdate={(updates) => onUpdateElement(selectedElement.id, updates)}
+          />
+        )}
+
+        {/* Draw specific inspector */}
+        {selectedElement.type === 'draw' && (
+          <DrawSection
+            element={selectedElement as any}
+            onUpdate={(updates) => onUpdateElement(selectedElement.id, updates)}
+          />
+        )}
+
+        {/* QR Code specific inspector */}
+        {selectedElement.type === 'qr-code' && (
+          <QrCodeSection
+            element={selectedElement as any}
             onUpdate={(updates) => onUpdateElement(selectedElement.id, updates)}
           />
         )}

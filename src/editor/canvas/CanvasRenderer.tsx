@@ -1,22 +1,46 @@
 import React, { useState } from 'react';
-import { Project, CanvasElement, TextElement, ShapeElement, ImageElement, LineElement } from '../../types/canvas';
+import {
+  Project,
+  CanvasElement,
+  TextElement,
+  ShapeElement,
+  ImageElement,
+  LineElement,
+  DrawElement,
+  ChartElement,
+  TableElement,
+  QrCodeElement,
+} from '../../types/canvas';
 import { getBackgroundStyle, gradientToCss } from '../../utils/color';
 import * as LucideIcons from 'lucide-react';
+import { RenderDraw } from './renderers/RenderDraw';
+import { RenderChart } from './renderers/RenderChart';
+import { RenderTable } from './renderers/RenderTable';
+import { RenderQrCode } from './renderers/RenderQrCode';
+import { RenderComments } from './renderers/RenderComments';
 
 interface CanvasRendererProps {
   project: Project;
   selectedId: string | null;
+  selectedIds?: string[];
   onSelectElement: (id: string, e: React.MouseEvent | React.TouchEvent) => void;
   onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
   isPlayingAnimation?: boolean;
+  showComments?: boolean;
+  activeCommentId?: string | null;
+  onSelectComment?: (id: string) => void;
 }
 
 export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
   project,
   selectedId,
+  selectedIds = [],
   onSelectElement,
   onUpdateElement,
   isPlayingAnimation = false,
+  showComments = true,
+  activeCommentId = null,
+  onSelectComment = () => {},
 }) => {
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
 
@@ -42,7 +66,7 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
       }}
     >
       {sortedElements.map((el) => {
-        const isSelected = selectedId === el.id;
+        const isSelected = selectedId === el.id || selectedIds.includes(el.id);
 
         // Animation classes / inline styles
         let animStyle: React.CSSProperties = {};
@@ -117,16 +141,42 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
             {el.type === 'shape' && <RenderShape element={el as ShapeElement} />}
 
             {/* IMAGE ELEMENT */}
-            {el.type === 'image' && <RenderImage element={el as ImageElement} />}
+            {el.type === 'image' && <RenderImage key={(el as ImageElement).src} element={el as ImageElement} />}
 
             {/* LINE ELEMENT */}
             {el.type === 'line' && <RenderLine element={el as LineElement} />}
 
             {/* ICON ELEMENT */}
             {el.type === 'icon' && <RenderIcon element={el as any} />}
+
+            {/* DRAW / PEN ELEMENT */}
+            {el.type === 'draw' && <RenderDraw element={el as DrawElement} />}
+
+            {/* CHART ELEMENT */}
+            {el.type === 'chart' && <RenderChart element={el as ChartElement} />}
+
+            {/* TABLE ELEMENT */}
+            {el.type === 'table' && (
+              <RenderTable
+                element={el as TableElement}
+                onUpdateElement={onUpdateElement}
+              />
+            )}
+
+            {/* QR CODE ELEMENT */}
+            {el.type === 'qr-code' && <RenderQrCode element={el as QrCodeElement} />}
           </div>
         );
       })}
+
+      {/* COMMENTS PIN BADGES ON CANVAS */}
+      {showComments && (
+        <RenderComments
+          comments={project.comments}
+          activeCommentId={activeCommentId}
+          onSelectComment={onSelectComment}
+        />
+      )}
     </div>
   );
 };
@@ -302,6 +352,9 @@ const RenderShape: React.FC<{ element: ShapeElement }> = ({ element }) => {
 };
 
 const RenderImage: React.FC<{ element: ImageElement }> = ({ element }) => {
+  const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
+  const [retrySrc, setRetrySrc] = useState(element.src);
+
   const f = element.filters || {
     brightness: 100,
     contrast: 100,
@@ -323,23 +376,71 @@ const RenderImage: React.FC<{ element: ImageElement }> = ({ element }) => {
   if (element.maskShape === 'circle') clipClass = 'rounded-full';
   else if (element.maskShape === 'squircle') clipClass = 'rounded-[28%]';
 
+  const handleError = () => {
+    // Try once more without cache buster, then give up
+    if (retrySrc === element.src) {
+      // Add a cache-bust param to retry
+      const sep = element.src.includes('?') ? '&' : '?';
+      setRetrySrc(`${element.src}${sep}_retry=1`);
+    } else {
+      setStatus('error');
+    }
+  };
+
   return (
     <div
-      className={`w-full h-full overflow-hidden ${clipClass}`}
+      className={`w-full h-full relative overflow-hidden ${clipClass}`}
       style={{
         borderRadius: element.borderRadius ? `${element.borderRadius}px` : undefined,
       }}
     >
+      {/* Loading shimmer — shown while image is fetching */}
+      {status === 'loading' && (
+        <div
+          className="absolute inset-0"
+          style={{
+            background: 'linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.10) 50%, rgba(255,255,255,0.04) 100%)',
+            backgroundSize: '200% 100%',
+            animation: 'shimmer 1.8s infinite linear',
+          }}
+        />
+      )}
+
+      {/* Error fallback */}
+      {status === 'error' && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-neutral-900/80 text-neutral-500">
+          <svg width="30%" height="30%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+          <span className="text-[0.6em] text-center px-2">Image unavailable</span>
+          <button
+            className="text-[0.55em] text-violet-400 underline mt-0.5"
+            onClick={(e) => { e.stopPropagation(); setStatus('loading'); setRetrySrc(`${element.src}?_r=${Date.now()}`); }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Actual image — fades in once loaded */}
       <img
-        src={element.src}
-        alt={element.name}
-        className="w-full h-full pointer-events-none"
+        key={retrySrc}
+        src={retrySrc}
+        alt={element.name || 'Image'}
+        className="absolute inset-0 w-full h-full pointer-events-none"
         style={{
           objectFit: element.objectFit || 'cover',
           filter: filterStyle,
           transform: `scale(${element.flipX ? -1 : 1}, ${element.flipY ? -1 : 1})`,
+          opacity: status === 'loaded' ? 1 : 0,
+          transition: 'opacity 0.25s ease',
         }}
-        crossOrigin="anonymous"
+        loading="eager"
+        decoding="async"
+        onLoad={() => setStatus('loaded')}
+        onError={handleError}
       />
     </div>
   );

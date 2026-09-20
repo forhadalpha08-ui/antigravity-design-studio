@@ -3,6 +3,11 @@
 @layer base {
   :root {
     --canvas-bg: #121316;
+    /* iOS safe area insets — fall back to 0 on non-notch devices */
+    --sai-top: env(safe-area-inset-top, 0px);
+    --sai-right: env(safe-area-inset-right, 0px);
+    --sai-bottom: env(safe-area-inset-bottom, 0px);
+    --sai-left: env(safe-area-inset-left, 0px);
   }
   
   body {
@@ -12,8 +17,11 @@
     overflow-x: hidden;
     user-select: none;
     -webkit-user-select: none;
+    /* Prevent rubber-band bounce on mobile */
+    overscroll-behavior: none;
   }
 }
+
 
 /* Checkerboard pattern for transparent canvas or transparent elements */
 .checkerboard-pattern {
@@ -77,4 +85,40 @@
 
 .anim-pulse {
   animation: pulse-glow 2.5s ease-in-out infinite;
+}
+
+/* ─── Safe-area utilities ──────────────────────────────────────── */
+/* Padding bottom = safe-area-inset-bottom so content clears the iOS home bar */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.pb-safe-plus-3 {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+}
+
+/* Add extra bottom space to avoid content being hidden by mobile bottom dock */
+.mb-mobile-dock {
+  margin-bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
+}
+
+/* ─── Scrollbar utilities ─────────────────────────────────────── */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* ─── Touch interaction ──────────────────────────────────────── */
+/* Prevent browser from intercepting touch events on the canvas viewport */
+.touch-none {
+  touch-action: none;
+}
+
+/* Prevent inner scroll containers from bubbling scroll to body on iOS */
+.overscroll-contain {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }

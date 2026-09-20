@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { Project, CanvasElement, CanvasBackground, Template, BrandKit } from '../types/canvas';
+import { Project, CanvasElement, CanvasBackground, Template, BrandKit, CommentThread } from '../types/canvas';
 import { TEMPLATES, createProjectFromTemplate } from '../templates/templatesData';
 import {
   loadProjectsFromStorage,
@@ -316,6 +316,165 @@ export function useProjectState() {
     });
   }, [updateProject]);
 
+  // Group elements
+  const groupElements = useCallback((ids: string[]) => {
+    if (ids.length < 2) return;
+    const groupId = generateId('grp');
+    updateProject((prev) => ({
+      ...prev,
+      elements: prev.elements.map((el) =>
+        ids.includes(el.id) ? { ...el, groupId } : el
+      ),
+    }));
+  }, [updateProject]);
+
+  // Ungroup elements
+  const ungroupElements = useCallback((groupId: string) => {
+    updateProject((prev) => ({
+      ...prev,
+      elements: prev.elements.map((el) =>
+        el.groupId === groupId ? { ...el, groupId: undefined } : el
+      ),
+    }));
+  }, [updateProject]);
+
+  // Smart Alignment
+  const alignElements = useCallback((
+    ids: string[],
+    type: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom'
+  ) => {
+    if (!currentProject || ids.length === 0) return;
+    updateProject((prev) => {
+      const selectedEls = prev.elements.filter((e) => ids.includes(e.id));
+      if (selectedEls.length === 0) return prev;
+
+      if (selectedEls.length === 1) {
+        // Single element aligns to canvas
+        const el = selectedEls[0];
+        let newX = el.x;
+        let newY = el.y;
+        if (type === 'left') newX = 0;
+        if (type === 'center') newX = Math.round((prev.width - el.width) / 2);
+        if (type === 'right') newX = prev.width - el.width;
+        if (type === 'top') newY = 0;
+        if (type === 'middle') newY = Math.round((prev.height - el.height) / 2);
+        if (type === 'bottom') newY = prev.height - el.height;
+
+        return {
+          ...prev,
+          elements: prev.elements.map((e) => (e.id === el.id ? { ...e, x: newX, y: newY } : e)),
+        };
+      }
+
+      // Multi-element: aligns to selection bounding box
+      const minX = Math.min(...selectedEls.map((e) => e.x));
+      const maxX = Math.max(...selectedEls.map((e) => e.x + e.width));
+      const minY = Math.min(...selectedEls.map((e) => e.y));
+      const maxY = Math.max(...selectedEls.map((e) => e.y + e.height));
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+
+      return {
+        ...prev,
+        elements: prev.elements.map((e) => {
+          if (!ids.includes(e.id)) return e;
+          let nx = e.x;
+          let ny = e.y;
+          if (type === 'left') nx = minX;
+          if (type === 'center') nx = Math.round(centerX - e.width / 2);
+          if (type === 'right') nx = maxX - e.width;
+          if (type === 'top') ny = minY;
+          if (type === 'middle') ny = Math.round(centerY - e.height / 2);
+          if (type === 'bottom') ny = maxY - e.height;
+          return { ...e, x: nx, y: ny };
+        }),
+      };
+    });
+  }, [currentProject, updateProject]);
+
+  // Distribute elements evenly
+  const distributeElements = useCallback((
+    ids: string[],
+    axis: 'horizontal' | 'vertical'
+  ) => {
+    if (ids.length < 3) return;
+    updateProject((prev) => {
+      const selectedEls = prev.elements
+        .filter((e) => ids.includes(e.id))
+        .sort((a, b) => (axis === 'horizontal' ? a.x - b.x : a.y - b.y));
+
+      if (selectedEls.length < 3) return prev;
+
+      if (axis === 'horizontal') {
+        const first = selectedEls[0];
+        const last = selectedEls[selectedEls.length - 1];
+        const totalSpan = (last.x + last.width) - first.x;
+        const totalElementsWidth = selectedEls.reduce((sum, e) => sum + e.width, 0);
+        const totalGap = totalSpan - totalElementsWidth;
+        const gap = totalGap / (selectedEls.length - 1);
+
+        let curX = first.x;
+        const posMap: { [id: string]: number } = {};
+        selectedEls.forEach((el) => {
+          posMap[el.id] = Math.round(curX);
+          curX += el.width + gap;
+        });
+
+        return {
+          ...prev,
+          elements: prev.elements.map((e) =>
+            posMap[e.id] !== undefined ? { ...e, x: posMap[e.id] } : e
+          ),
+        };
+      } else {
+        const first = selectedEls[0];
+        const last = selectedEls[selectedEls.length - 1];
+        const totalSpan = (last.y + last.height) - first.y;
+        const totalElementsHeight = selectedEls.reduce((sum, e) => sum + e.height, 0);
+        const totalGap = totalSpan - totalElementsHeight;
+        const gap = totalGap / (selectedEls.length - 1);
+
+        let curY = first.y;
+        const posMap: { [id: string]: number } = {};
+        selectedEls.forEach((el) => {
+          posMap[el.id] = Math.round(curY);
+          curY += el.height + gap;
+        });
+
+        return {
+          ...prev,
+          elements: prev.elements.map((e) =>
+            posMap[e.id] !== undefined ? { ...e, y: posMap[e.id] } : e
+          ),
+        };
+      }
+    });
+  }, [updateProject]);
+
+  // Comment thread actions
+  const addComment = useCallback((comment: CommentThread) => {
+    updateProject((prev) => ({
+      ...prev,
+      comments: [comment, ...(prev.comments || [])],
+    }));
+  }, [updateProject]);
+
+  const resolveComment = useCallback((id: string) => {
+    updateProject((prev) => ({
+      ...prev,
+      comments: (prev.comments || []).map((c) =>
+        c.id === id ? { ...c, resolved: !c.resolved } : c
+      ),
+    }));
+  }, [updateProject]);
+
+  const deleteComment = useCallback((id: string) => {
+    updateProject((prev) => ({
+      ...prev,
+      comments: (prev.comments || []).map((c) => c).filter((c) => c.id !== id),
+    }));
+  }, [updateProject]);
+
   return {
     projects,
     currentProject,
@@ -341,5 +500,12 @@ export function useProjectState() {
     updateCanvasSize,
     updateCanvasBackground,
     applyBrandKit,
+    groupElements,
+    ungroupElements,
+    alignElements,
+    distributeElements,
+    addComment,
+    resolveComment,
+    deleteComment,
   };
 }

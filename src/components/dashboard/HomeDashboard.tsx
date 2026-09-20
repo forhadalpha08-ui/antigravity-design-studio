@@ -49,23 +49,23 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   const trendingTemplates = TEMPLATES.filter((t) => t.isTrending).slice(0, 8);
 
   return (
-    <div className="flex-1 w-full overflow-y-auto px-6 py-8 space-y-12 max-w-7xl mx-auto select-none">
+    <div className="flex-1 w-full overflow-y-auto px-4 sm:px-6 py-6 sm:py-8 space-y-10 sm:space-y-12 max-w-7xl mx-auto select-none">
       {/* 1. Hero Section */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-neutral-900 via-[#13141f] to-[#0c0d16] border border-neutral-800 p-8 sm:p-12 shadow-2xl">
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-neutral-900 via-[#13141f] to-[#0c0d16] border border-neutral-800 p-6 sm:p-8 lg:p-12 shadow-2xl">
         <div className="absolute -right-16 -top-16 w-96 h-96 rounded-full bg-violet-600/15 blur-3xl pointer-events-none" />
         <div className="absolute right-32 bottom-0 w-80 h-80 rounded-full bg-pink-500/10 blur-3xl pointer-events-none" />
 
-        <div className="relative z-10 max-w-2xl space-y-4">
+        <div className="relative z-10 max-w-2xl space-y-3 sm:space-y-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-600/20 border border-violet-500/30 text-violet-300 text-xs font-semibold">
             <Sparkles size={13} />
             <span>AF-CANVAS • Next-Generation Creative Studio</span>
           </div>
 
-          <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight">
+          <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-tight">
             Create something extraordinary.
           </h1>
 
-          <p className="text-sm sm:text-base text-neutral-400 font-normal leading-relaxed">
+          <p className="text-sm text-neutral-400 font-normal leading-relaxed">
             Design posters, social content, presentations, invitations, brand materials and more. 
             Powered by 50 exclusive templates, fluid typography, and professional export.
           </p>
@@ -73,7 +73,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           <div className="pt-2 flex flex-wrap items-center gap-3">
             <button
               onClick={onOpenNewDesignModal}
-              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-xl text-sm font-bold shadow-xl shadow-violet-600/25 transition-all cursor-pointer"
+              className="flex items-center gap-2 px-5 py-2.5 sm:px-6 sm:py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-xl text-sm font-bold shadow-xl shadow-violet-600/25 transition-all cursor-pointer"
             >
               <Plus size={16} />
               <span>Create a Design</span>
@@ -81,7 +81,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
 
             <button
               onClick={onExploreTemplates}
-              className="flex items-center gap-2 px-6 py-3 bg-neutral-800/80 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 hover:text-white rounded-xl text-sm font-semibold transition-all cursor-pointer"
+              className="flex items-center gap-2 px-5 py-2.5 sm:px-6 sm:py-3 bg-neutral-800/80 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 hover:text-white rounded-xl text-sm font-semibold transition-all cursor-pointer"
             >
               <span>Explore 50 Templates</span>
               <ArrowRight size={15} />
@@ -100,7 +100,8 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           <span className="text-xs text-neutral-500">Pick a preset to start blank</span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+        {/* On mobile/tablet: horizontally scrollable. On lg+: fixed 7-column grid */}
+        <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-none lg:grid lg:grid-cols-7">
           {CANVAS_PRESETS.slice(0, 7).map((preset) => {
             const IconComp = (LucideIcons as any)[preset.iconName] || LucideIcons.Layout;
             return (
@@ -109,7 +110,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                 onClick={() =>
                   onCreateBlank(preset.name, preset.width, preset.height, preset.category)
                 }
-                className="group flex flex-col p-4 bg-neutral-900/70 hover:bg-neutral-850 border border-neutral-800 hover:border-violet-500/50 rounded-2xl text-left transition-all hover:scale-[1.02] shadow-md"
+                className="group flex flex-col p-4 bg-neutral-900/70 hover:bg-neutral-850 border border-neutral-800 hover:border-violet-500/50 rounded-2xl text-left transition-all hover:scale-[1.02] shadow-md flex-shrink-0 w-32 sm:w-36 lg:w-auto"
               >
                 <div className="w-9 h-9 rounded-xl bg-violet-600/10 border border-violet-500/20 flex items-center justify-center text-violet-400 group-hover:bg-violet-600 group-hover:text-white transition-colors mb-3">
                   <IconComp size={18} />
