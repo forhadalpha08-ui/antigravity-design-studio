@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Project,
   CanvasElement,
@@ -23,6 +23,8 @@ interface CanvasRendererProps {
   project: Project;
   selectedId: string | null;
   selectedIds?: string[];
+  editingTextId?: string | null;
+  onSetEditingTextId?: (id: string | null) => void;
   onSelectElement: (id: string, e: React.MouseEvent | React.TouchEvent) => void;
   onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
   isPlayingAnimation?: boolean;
@@ -35,6 +37,8 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
   project,
   selectedId,
   selectedIds = [],
+  editingTextId: editingTextIdProp,
+  onSetEditingTextId,
   onSelectElement,
   onUpdateElement,
   isPlayingAnimation = false,
@@ -42,7 +46,14 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
   activeCommentId = null,
   onSelectComment = () => {},
 }) => {
-  const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  const [internalEditingTextId, setInternalEditingTextId] = useState<string | null>(null);
+  const activeEditingTextId = editingTextIdProp !== undefined ? editingTextIdProp : internalEditingTextId;
+  const setEditingTextId = (id: string | null) => {
+    if (onSetEditingTextId) onSetEditingTextId(id);
+    setInternalEditingTextId(id);
+  };
+
+  const lastTapRef = useRef<{ id: string; time: number }>({ id: '', time: 0 });
 
   const bgStyle = getBackgroundStyle(project.background);
 
@@ -110,12 +121,21 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
               ...animStyle,
             }}
             onMouseDown={(e) => {
-              if (editingTextId === el.id) return;
+              if (activeEditingTextId === el.id) return;
               e.stopPropagation();
               onSelectElement(el.id, e);
             }}
             onTouchStart={(e) => {
-              if (editingTextId === el.id) return;
+              if (activeEditingTextId === el.id) return;
+              const now = Date.now();
+              if (lastTapRef.current.id === el.id && now - lastTapRef.current.time < 350) {
+                if (el.type === 'text') {
+                  e.stopPropagation();
+                  setEditingTextId(el.id);
+                  return;
+                }
+              }
+              lastTapRef.current = { id: el.id, time: now };
               onSelectElement(el.id, e);
             }}
             onDoubleClick={(e) => {
@@ -129,7 +149,7 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
             {el.type === 'text' && (
               <RenderText
                 element={el as TextElement}
-                isEditing={editingTextId === el.id}
+                isEditing={activeEditingTextId === el.id}
                 onFinishEditing={(newText) => {
                   setEditingTextId(null);
                   onUpdateElement(el.id, { text: newText });
@@ -189,6 +209,10 @@ const RenderText: React.FC<{
 }> = ({ element, isEditing, onFinishEditing }) => {
   const [tempText, setTempText] = useState(element.text);
 
+  useEffect(() => {
+    setTempText(element.text);
+  }, [element.text]);
+
   let textTransformStyle = element.textTransform || 'none';
   let fontStyle = element.fontStyle || 'normal';
   let textDecoration = element.textDecoration || 'none';
@@ -198,6 +222,7 @@ const RenderText: React.FC<{
       <textarea
         autoFocus
         value={tempText}
+        onFocus={(e) => e.target.select()}
         onChange={(e) => setTempText(e.target.value)}
         onBlur={() => onFinishEditing(tempText)}
         onKeyDown={(e) => {

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Project } from '../../types/canvas';
 import { exportProject, ExportFormat } from '../../utils/export';
+import { CanvasRenderer } from '../../editor/canvas/CanvasRenderer';
 import confetti from 'canvas-confetti';
 import { X, Download } from 'lucide-react';
 
@@ -18,6 +19,13 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
 
   const calculatedWidth = project.width * scale;
   const calculatedHeight = project.height * scale;
+
+  // Calculate live preview dimensions
+  const maxPreviewW = 360;
+  const maxPreviewH = 140;
+  const previewScale = Math.min(maxPreviewW / project.width, maxPreviewH / project.height);
+  const previewW = Math.round(project.width * previewScale);
+  const previewH = Math.round(project.height * previewScale);
 
   const handleExport = async () => {
     try {
@@ -72,6 +80,40 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
 
         {/* Modal Content */}
         <div className="p-5 sm:p-6 space-y-5 overflow-y-auto overscroll-contain">
+          {/* Live Preview of Design */}
+          <div className="w-full bg-[#08090e] border border-neutral-800 rounded-2xl p-3 flex flex-col items-center justify-center overflow-hidden shadow-inner">
+            <div className="w-full flex items-center justify-between pb-2 text-[11px]">
+              <span className="font-bold text-neutral-300">Design Preview</span>
+              <span className="font-mono text-neutral-500 text-[10px] bg-neutral-900 px-2 py-0.5 rounded border border-neutral-800">
+                {project.width} × {project.height} px
+              </span>
+            </div>
+            <div
+              className="shadow-2xl rounded-lg overflow-hidden relative flex-shrink-0"
+              style={{
+                width: `${previewW}px`,
+                height: `${previewH}px`,
+              }}
+            >
+              <div
+                className="origin-top-left pointer-events-none"
+                style={{
+                  transform: `scale(${previewScale})`,
+                  transformOrigin: 'top left',
+                  width: `${project.width}px`,
+                  height: `${project.height}px`,
+                }}
+              >
+                <CanvasRenderer
+                  project={project}
+                  selectedId={null}
+                  onSelectElement={() => {}}
+                  onUpdateElement={() => {}}
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Format Selection */}
           <div className="space-y-2">
             <label className="text-xs font-semibold text-neutral-300 uppercase tracking-wider">

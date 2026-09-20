@@ -14,6 +14,7 @@ import {
   AlignCenter,
   AlignRight,
   AlignJustify,
+  Type,
 } from 'lucide-react';
 
 interface QuickElementBarProps {
@@ -25,6 +26,7 @@ interface QuickElementBarProps {
   onToggleLock: (id: string) => void;
   onReorder: (id: string, dir: 'up' | 'down' | 'top' | 'bottom') => void;
   onOpenEdit?: () => void;
+  onEditText?: (id: string) => void;
   onGroup?: (ids: string[]) => void;
   onUngroup?: (groupId: string) => void;
   onAlign?: (type: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => void;
@@ -39,6 +41,7 @@ export const QuickElementBar: React.FC<QuickElementBarProps> = ({
   onToggleLock,
   onReorder,
   onOpenEdit,
+  onEditText,
   onGroup,
   onUngroup,
   onAlign,
@@ -55,6 +58,21 @@ export const QuickElementBar: React.FC<QuickElementBarProps> = ({
       }}
       onClick={(e) => e.stopPropagation()}
     >
+      {/* Edit Text Action for text elements */}
+      {element.type === 'text' && onEditText && (
+        <>
+          <button
+            title="Edit Text Inline"
+            onClick={() => onEditText(element.id)}
+            className="px-2 py-1 bg-violet-600 hover:bg-violet-500 text-white rounded transition-colors flex items-center gap-1.5 text-xs font-semibold shadow-md shadow-violet-600/30"
+          >
+            <Type size={13} />
+            <span>Edit Text</span>
+          </button>
+          <div className="w-[1px] h-4 bg-neutral-700 mx-0.5" />
+        </>
+      )}
+
       {onOpenEdit && (
         <>
           <button

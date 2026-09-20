@@ -45,12 +45,17 @@ export function triggerDownload(blob: Blob | string, filename: string): void {
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
+  a.rel = 'noopener noreferrer';
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-  if (typeof blob !== 'string') {
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
+  setTimeout(() => {
+    if (document.body.contains(a)) {
+      document.body.removeChild(a);
+    }
+    if (typeof blob !== 'string') {
+      URL.revokeObjectURL(url);
+    }
+  }, 10000);
 }
 
 // Render Project to offscreen HTML5 Canvas
@@ -59,6 +64,15 @@ export async function renderProjectToCanvas(
   scale = 1,
   transparentBg = false
 ): Promise<HTMLCanvasElement> {
+  // Ensure custom web fonts are loaded before rasterizing
+  if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
+    try {
+      await document.fonts.ready;
+    } catch {
+      // Continue even if font loading times out
+    }
+  }
+
   const width = project.width * scale;
   const height = project.height * scale;
 
@@ -308,12 +322,35 @@ function drawText(ctx: CanvasRenderingContext2D, el: TextElement) {
   if (el.textAlign === 'center') alignX = el.width / 2;
   else if (el.textAlign === 'right') alignX = el.width;
 
-  const lines = text.split('\n');
-  const lineHeightPx = fontSize * (el.lineHeight || 1.2);
+  // Word-wrap lines that exceed element bounding width, while respecting hard linebreaks
+  const rawLines = text.split('\n');
+  const wrappedLines: string[] = [];
+  for (const rawLine of rawLines) {
+    if (!rawLine) {
+      wrappedLines.push('');
+      continue;
+    }
+    const words = rawLine.split(' ');
+    let currentLine = '';
+    for (const word of words) {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      const metrics = ctx.measureText(testLine);
+      if (metrics.width > el.width && currentLine) {
+        wrappedLines.push(currentLine);
+        currentLine = word;
+      } else {
+        currentLine = testLine;
+      }
+    }
+    if (currentLine) {
+      wrappedLines.push(currentLine);
+    }
+  }
 
+  const lineHeightPx = fontSize * (el.lineHeight || 1.25);
   ctx.fillStyle = el.color || '#ffffff';
 
-  lines.forEach((line, index) => {
+  wrappedLines.forEach((line, index) => {
     const lineY = index * lineHeightPx;
     if (el.strokeColor && el.strokeWidth && el.strokeWidth > 0) {
       ctx.strokeStyle = el.strokeColor;

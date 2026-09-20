@@ -96,6 +96,9 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
     active: boolean;
   } | null>(null);
 
+  // Active inline text editing state
+  const [editingTextId, setEditingTextId] = useState<string | null>(null);
+
   // Multi-selection dragging
   const multiDragStartRef = useRef<{
     clientX: number;
@@ -537,6 +540,8 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
           project={project}
           selectedId={singleSelectedElement?.id || null}
           selectedIds={effectiveSelectedIds}
+          editingTextId={editingTextId}
+          onSetEditingTextId={setEditingTextId}
           onSelectElement={handleSelectElementFromRenderer}
           onUpdateElement={onUpdateElement}
           isPlayingAnimation={isPlayingAnimation}
@@ -585,6 +590,7 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
               scale={scale}
               onDuplicate={onDuplicateElement}
               onDelete={onDeleteElement}
+              onEditText={(id) => setEditingTextId(id)}
               onToggleLock={(id) =>
                 onUpdateElement(id, { locked: !singleSelectedElement.locked })
               }

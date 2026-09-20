@@ -38,6 +38,9 @@ export const TemplateCard: React.FC<TemplateCardProps> = memo(({
     return () => ro.disconnect();
   }, [template.width, template.height]);
 
+  const scaledW = Math.round(template.width * scale);
+  const scaledH = Math.round(template.height * scale);
+
   return (
     <div
       onClick={() => onOpen(template)}
@@ -46,23 +49,32 @@ export const TemplateCard: React.FC<TemplateCardProps> = memo(({
       {/* 1. VISUAL CANVAS PREVIEW BOX */}
       <div
         ref={containerRef}
-        className="w-full h-52 bg-[#090a0f] flex items-center justify-center overflow-hidden relative checkerboard-pattern"
+        className="w-full h-52 bg-[#090a0f] flex items-center justify-center overflow-hidden relative checkerboard-pattern p-2"
       >
         {/* Rendered Template Scaled in Box */}
         <div
-          className="origin-center pointer-events-none transform transition-transform duration-300 group-hover:scale-105 shadow-2xl flex-shrink-0"
+          className="shadow-2xl rounded-lg overflow-hidden relative flex-shrink-0 transition-transform duration-300 group-hover:scale-105"
           style={{
-            transform: `scale(${scale})`,
-            width: `${template.width}px`,
-            height: `${template.height}px`,
+            width: `${scaledW}px`,
+            height: `${scaledH}px`,
           }}
         >
-          <CanvasRenderer
-            project={template as any}
-            selectedId={null}
-            onSelectElement={() => {}}
-            onUpdateElement={() => {}}
-          />
+          <div
+            className="origin-top-left pointer-events-none"
+            style={{
+              transform: `scale(${scale})`,
+              transformOrigin: 'top left',
+              width: `${template.width}px`,
+              height: `${template.height}px`,
+            }}
+          >
+            <CanvasRenderer
+              project={template as any}
+              selectedId={null}
+              onSelectElement={() => {}}
+              onUpdateElement={() => {}}
+            />
+          </div>
         </div>
 
         {/* Exclusive / Premium Badge */}

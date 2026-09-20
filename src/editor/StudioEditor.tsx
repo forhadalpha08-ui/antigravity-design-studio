@@ -309,7 +309,10 @@ export const StudioEditor: React.FC<StudioEditorProps> = ({
           <TextDrawer
             canvasWidth={project.width}
             canvasHeight={project.height}
-            onAddElement={onAddElement}
+            onAddElement={(el) => {
+              onAddElement(el);
+              selectElement(el.id);
+            }}
           />
         )}
         {activeDrawer === 'draw' && (

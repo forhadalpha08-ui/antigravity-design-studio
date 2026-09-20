@@ -25,6 +25,25 @@ export const TypographySection: React.FC<TypographySectionProps> = ({
         Typography
       </div>
 
+      {/* Text Content Editor */}
+      <div className="space-y-1.5 bg-neutral-900/60 p-2.5 rounded-xl border border-neutral-800">
+        <div className="flex items-center justify-between">
+          <label className="text-[11px] font-semibold text-violet-400 uppercase tracking-wider flex items-center gap-1">
+            <span>Text Content</span>
+          </label>
+          <span className="text-[10px] text-neutral-500 font-mono">
+            {element.text.length} chars
+          </span>
+        </div>
+        <textarea
+          rows={3}
+          value={element.text}
+          onChange={(e) => onUpdate({ text: e.target.value })}
+          placeholder="Type your design text here..."
+          className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2.5 text-xs text-white placeholder-neutral-600 outline-none focus:border-violet-500 transition-colors resize-y leading-relaxed font-sans"
+        />
+      </div>
+
       {/* Font Family Dropdown */}
       <div className="space-y-1">
         <label className="text-[11px] text-neutral-500">Font Family</label>
