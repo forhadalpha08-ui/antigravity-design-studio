@@ -4,6 +4,7 @@ import { CANVAS_PRESETS } from '../../utils/presetSizes';
 import { TEMPLATES } from '../../templates/templatesData';
 import { CanvasRenderer } from '../../editor/canvas/CanvasRenderer';
 import { TemplateCard } from './TemplateCard';
+import { StudioWorkflowGuide } from './StudioWorkflowGuide';
 import {
   Sparkles,
   Plus,
@@ -246,7 +247,13 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         )}
       </section>
 
-      {/* 4. Trending Templates */}
+      {/* 4. Studio Workflow & Visual Tool Guide Section */}
+      <StudioWorkflowGuide
+        onExploreTemplates={onExploreTemplates}
+        onOpenNewDesign={onOpenNewDesignModal}
+      />
+
+      {/* 5. Trending Templates */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">

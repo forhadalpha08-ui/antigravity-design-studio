@@ -11,9 +11,10 @@ import {
   Home,
   Menu,
   X,
+  Compass,
 } from 'lucide-react';
 
-export type DashboardTab = 'home' | 'templates' | 'projects' | 'brand-kit' | 'assets';
+export type DashboardTab = 'home' | 'templates' | 'projects' | 'guide' | 'brand-kit' | 'assets';
 
 interface StudioHeaderProps {
   currentTab: DashboardTab;
@@ -27,6 +28,7 @@ const NAV_ITEMS: { id: DashboardTab; label: string; icon: React.ElementType }[] 
   { id: 'home', label: 'Home', icon: Home },
   { id: 'templates', label: 'Templates', icon: LayoutGrid },
   { id: 'projects', label: 'Projects', icon: FolderKanban },
+  { id: 'guide', label: 'Guide & Tools', icon: Compass },
   { id: 'brand-kit', label: 'Brand Kit', icon: Palette },
   { id: 'assets', label: 'Assets', icon: ImageIcon },
 ];

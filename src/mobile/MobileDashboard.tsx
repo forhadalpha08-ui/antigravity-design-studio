@@ -28,9 +28,11 @@ import {
   Eye,
   Camera,
   Layers,
+  Compass,
 } from 'lucide-react';
+import { StudioWorkflowGuide } from '../components/dashboard/StudioWorkflowGuide';
 
-export type MobileDashboardTab = 'home' | 'templates' | 'projects' | 'brand-kit' | 'assets';
+export type MobileDashboardTab = 'home' | 'guide' | 'templates' | 'projects' | 'brand-kit' | 'assets';
 
 interface MobileDashboardProps {
   projects: Project[];
@@ -313,7 +315,23 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
                 ))}
               </div>
             </div>
+
+            {/* Studio Workflow & Tool Guide Section */}
+            <StudioWorkflowGuide
+              onExploreTemplates={() => setCurrentTab('templates')}
+              onOpenNewDesign={onOpenNewDesignModal}
+            />
           </>
+        )}
+
+        {/* -------------------- TAB: WORKFLOW GUIDE -------------------- */}
+        {currentTab === 'guide' && (
+          <div className="space-y-4">
+            <StudioWorkflowGuide
+              onExploreTemplates={() => setCurrentTab('templates')}
+              onOpenNewDesign={onOpenNewDesignModal}
+            />
+          </div>
         )}
 
         {/* -------------------- TAB 2: TEMPLATES (ALL 50) -------------------- */}
@@ -755,7 +773,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
       >
         <button
           onClick={() => setCurrentTab('home')}
-          className={`flex flex-col items-center justify-center px-3 py-1 transition-colors ${
+          className={`flex flex-col items-center justify-center px-2 py-1 transition-colors ${
             currentTab === 'home' ? 'text-violet-400 font-bold' : 'text-neutral-500'
           }`}
         >
@@ -764,8 +782,18 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
         </button>
 
         <button
+          onClick={() => setCurrentTab('guide')}
+          className={`flex flex-col items-center justify-center px-2 py-1 transition-colors ${
+            currentTab === 'guide' ? 'text-violet-400 font-bold' : 'text-neutral-500'
+          }`}
+        >
+          <Compass size={18} />
+          <span className="text-[10px] mt-1 font-semibold">Guide</span>
+        </button>
+
+        <button
           onClick={() => setCurrentTab('templates')}
-          className={`flex flex-col items-center justify-center px-3 py-1 transition-colors ${
+          className={`flex flex-col items-center justify-center px-2 py-1 transition-colors ${
             currentTab === 'templates' ? 'text-violet-400 font-bold' : 'text-neutral-500'
           }`}
         >

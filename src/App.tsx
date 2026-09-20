@@ -13,6 +13,7 @@ import { NewDesignModal } from './components/modals/NewDesignModal';
 import { ExportModal } from './components/modals/ExportModal';
 import { TemplatePreviewModal } from './components/modals/TemplatePreviewModal';
 import { PresentationModal } from './components/modals/PresentationModal';
+import { StudioWorkflowGuide } from './components/dashboard/StudioWorkflowGuide';
 
 export function App() {
   const {
@@ -203,6 +204,15 @@ export function App() {
               )}
 
               {currentTab === 'assets' && <AssetLibrary />}
+
+              {currentTab === 'guide' && (
+                <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 sm:py-8 max-w-7xl mx-auto w-full">
+                  <StudioWorkflowGuide
+                    onExploreTemplates={() => setCurrentTab('templates')}
+                    onOpenNewDesign={() => setIsNewDesignOpen(true)}
+                  />
+                </div>
+              )}
 
               {currentTab === 'brand-kit' && (
                 <div className="flex-1 flex items-center justify-center p-8">
