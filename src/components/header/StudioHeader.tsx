@@ -33,7 +33,7 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
           </div>
           <div>
             <span className="text-sm font-black tracking-widest text-white uppercase block">
-              ANTIGRAVITY
+              AF-CANVAS
             </span>
             <span className="text-[10px] font-bold tracking-[0.2em] text-neutral-400 block -mt-1">
               DESIGN STUDIO

@@ -64,8 +64,8 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
 
         <div className="h-5 w-[1px] bg-neutral-800" />
 
-        {/* Antigravity Logo mark */}
-        <div className="flex items-center gap-2">
+        {/* AF-CANVAS Logo mark */}
+        <div className="flex items-center gap-2" title="AF-CANVAS Studio">
           <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-violet-600 to-indigo-500 flex items-center justify-center shadow-md shadow-violet-600/30">
             <Sparkles size={15} className="text-white" />
           </div>

@@ -122,7 +122,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
           </div>
           <div>
             <span className="text-xs font-black tracking-widest text-white block uppercase">
-              ANTIGRAVITY
+              AF-CANVAS
             </span>
             <span className="text-[8px] font-bold text-neutral-400 block -mt-1 tracking-wider">
               DESIGN STUDIO

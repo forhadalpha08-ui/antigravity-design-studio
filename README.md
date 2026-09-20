@@ -1,4 +1,4 @@
-# 🚀 ANTIGRAVITY DESIGN STUDIO
+# 🚀 AF-CANVAS
 ### *The Next-Generation Browser-Based Graphic Design Platform*
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Available%20Now-7c3aed?style=for-the-badge&logo=github)](https://forhadalpha08-ui.github.io/antigravity-design-studio/)
@@ -6,9 +6,9 @@
 
 🌐 **Live URL**: [https://forhadalpha08-ui.github.io/antigravity-design-studio/](https://forhadalpha08-ui.github.io/antigravity-design-studio/)
 
-![Antigravity Design Studio](https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80)
+![AF-CANVAS](https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80)
 
-**ANTIGRAVITY DESIGN STUDIO** is a complete, production-quality, browser-based graphic design platform inspired by the workflow and usability of modern creative tools, but designed with its own distinct visual identity (Obsidian Dark Luxury / Modern Creative SaaS), 50 fully designed exclusive templates across 30 categories, an interactive vector canvas engine, advanced typography, algorithmic background studio, brand kit manager, and a dedicated mobile design experience.
+**AF-CANVAS** is a complete, production-quality, browser-based graphic design platform inspired by the workflow and usability of modern creative tools, but designed with its own distinct visual identity (Obsidian Dark Luxury / Modern Creative SaaS), 50 fully designed exclusive templates across 30 categories, an interactive vector canvas engine, advanced typography, algorithmic background studio, brand kit manager, and a dedicated mobile design experience.
 
 ---
 
