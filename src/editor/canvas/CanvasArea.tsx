@@ -22,6 +22,7 @@ interface CanvasAreaProps {
   onDeleteElement: (id: string) => void;
   onReorderLayer: (id: string, dir: 'up' | 'down' | 'top' | 'bottom') => void;
   onSetGuides: (guides: SnapGuide[]) => void;
+  onOpenEdit?: () => void;
 }
 
 export const CanvasArea: React.FC<CanvasAreaProps> = ({
@@ -40,6 +41,7 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
   onDeleteElement,
   onReorderLayer,
   onSetGuides,
+  onOpenEdit,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isPanning, setIsPanning] = useState(false);
@@ -99,6 +101,78 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
     }
   };
 
+  // Touch panning and pinch zoom
+  const touchStartRef = useRef<{
+    dist: number;
+    scaleStart: number;
+    panX: number;
+    panY: number;
+    clientX: number;
+    clientY: number;
+  } | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      if (activeTool === 'hand') {
+        const touch = e.touches[0];
+        setIsPanning(true);
+        panStartRef.current = {
+          clientX: touch.clientX,
+          clientY: touch.clientY,
+          panX: pan.x,
+          panY: pan.y,
+        };
+      }
+    } else if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      touchStartRef.current = {
+        dist,
+        scaleStart: scale,
+        panX: pan.x,
+        panY: pan.y,
+        clientX: midX,
+        clientY: midY,
+      };
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 1 && (isPanning || activeTool === 'hand')) {
+      const touch = e.touches[0];
+      const dx = touch.clientX - panStartRef.current.clientX;
+      const dy = touch.clientY - panStartRef.current.clientY;
+      onPanChange({
+        x: panStartRef.current.panX + dx,
+        y: panStartRef.current.panY + dy,
+      });
+    } else if (e.touches.length === 2 && touchStartRef.current) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const factor = dist / touchStartRef.current.dist;
+      const nextScale = Math.min(Math.max(touchStartRef.current.scaleStart * factor, 0.12), 4);
+      onScaleChange(nextScale);
+
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      const panDx = midX - touchStartRef.current.clientX;
+      const panDy = midY - touchStartRef.current.clientY;
+      onPanChange({
+        x: touchStartRef.current.panX + panDx,
+        y: touchStartRef.current.panY + panDy,
+      });
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setIsPanning(false);
+    touchStartRef.current = null;
+  };
+
   return (
     <div
       ref={containerRef}
@@ -107,6 +181,9 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
       }`}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onSelectElement(null);
@@ -162,6 +239,7 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
                 onUpdateElement(id, { locked: !selectedElement.locked })
               }
               onReorder={onReorderLayer}
+              onOpenEdit={onOpenEdit}
             />
           </>
         )}

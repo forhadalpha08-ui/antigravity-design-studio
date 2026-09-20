@@ -80,6 +80,7 @@ export function App() {
         isMobile ? (
           <MobileEditor
             project={currentProject}
+            saveStatus={saveStatus}
             canUndo={canUndo}
             canRedo={canRedo}
             onUndo={undo}
@@ -94,7 +95,9 @@ export function App() {
             onDuplicateElement={duplicateElement}
             onDeleteElement={removeElement}
             onReorderLayer={reorderLayer}
-            onUpdateBackground={updateCanvasBackground}
+            onUpdateCanvasSize={updateCanvasSize}
+            onUpdateCanvasBackground={updateCanvasBackground}
+            onApplyBrandKit={applyBrandKit}
           />
         ) : (
           <StudioEditor
@@ -128,6 +131,10 @@ export function App() {
             onOpenTemplate={openTemplateAsProject}
             onPreviewTemplate={setPreviewTemplate}
             onOpenNewDesignModal={() => setIsNewDesignOpen(true)}
+            onCreateBlank={createBlankProject}
+            onDuplicateProject={duplicateProject}
+            onDeleteProject={deleteProject}
+            onToggleFavorite={toggleFavorite}
           />
         ) : (
           <div className="flex-1 flex flex-col overflow-hidden">

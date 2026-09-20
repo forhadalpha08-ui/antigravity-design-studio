@@ -1,6 +1,6 @@
 import React from 'react';
 import { CanvasElement } from '../../types/canvas';
-import { Copy, Trash2, Lock, Unlock, ArrowUp, ArrowDown } from 'lucide-react';
+import { Copy, Trash2, Lock, Unlock, ArrowUp, ArrowDown, Sliders } from 'lucide-react';
 
 interface QuickElementBarProps {
   element: CanvasElement;
@@ -9,6 +9,7 @@ interface QuickElementBarProps {
   onDelete: (id: string) => void;
   onToggleLock: (id: string) => void;
   onReorder: (id: string, dir: 'up' | 'down' | 'top' | 'bottom') => void;
+  onOpenEdit?: () => void;
 }
 
 export const QuickElementBar: React.FC<QuickElementBarProps> = ({
@@ -18,6 +19,7 @@ export const QuickElementBar: React.FC<QuickElementBarProps> = ({
   onDelete,
   onToggleLock,
   onReorder,
+  onOpenEdit,
 }) => {
   return (
     <div
@@ -28,6 +30,20 @@ export const QuickElementBar: React.FC<QuickElementBarProps> = ({
       }}
       onClick={(e) => e.stopPropagation()}
     >
+      {onOpenEdit && (
+        <>
+          <button
+            title="Edit Properties"
+            onClick={onOpenEdit}
+            className="p-1 hover:bg-violet-600/30 text-violet-400 hover:text-violet-300 rounded transition-colors flex items-center gap-1 text-[11px] font-semibold"
+          >
+            <Sliders size={14} />
+            <span>Edit</span>
+          </button>
+          <div className="w-[1px] h-4 bg-neutral-700 mx-0.5" />
+        </>
+      )}
+
       <button
         title="Duplicate"
         onClick={() => onDuplicate(element.id)}

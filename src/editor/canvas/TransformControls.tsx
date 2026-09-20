@@ -179,7 +179,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
   };
 
   const handleStyle =
-    'absolute w-3 h-3 bg-white border-2 border-violet-600 rounded-sm shadow-md pointer-events-auto z-50 hover:scale-125 transition-transform';
+    'absolute w-3.5 h-3.5 bg-white border-2 border-violet-600 rounded-sm shadow-md pointer-events-auto z-50 hover:scale-125 transition-transform touch-none';
 
   return (
     <div
@@ -195,17 +195,17 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
     >
       {/* Selection Bounding Box Outline */}
       <div
-        className="w-full h-full border-2 border-violet-500 pointer-events-auto cursor-move"
+        className="w-full h-full border-2 border-violet-500 pointer-events-auto cursor-move touch-none"
         onPointerDown={handleDragStart}
       >
         {/* Rotation handle */}
         {!element.locked && (
-          <div className="absolute -top-7 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-auto">
+          <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-auto touch-none">
             <div
-              className="w-3.5 h-3.5 rounded-full bg-violet-600 border border-white cursor-grab active:cursor-grabbing shadow-lg hover:scale-125 transition-transform"
+              className="w-4 h-4 rounded-full bg-violet-600 border-2 border-white cursor-grab active:cursor-grabbing shadow-lg hover:scale-125 transition-transform touch-none"
               onPointerDown={(e) => handlePointerDown(e, 'rot')}
             />
-            <div className="w-[1px] h-3 bg-violet-500" />
+            <div className="w-[1.5px] h-4 bg-violet-500" />
             {isTransforming && (
               <div className="absolute -top-6 bg-neutral-900 text-[10px] text-white px-1.5 py-0.5 rounded shadow border border-white/20 whitespace-nowrap">
                 {currentAngle}°
