@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import QRCode from 'qrcode';
-import { QrGrid, Palette, Plus, AlertCircle, RefreshCw } from 'lucide-react';
+import { QrCode, Palette, Plus, AlertCircle, RefreshCw } from 'lucide-react';
 import { QrCodeElement } from '../../types/canvas';
 import { generateId } from '../../utils/id';
 
@@ -110,7 +110,7 @@ export default function QrDrawer({ canvasWidth, canvasHeight, onAddElement }: Qr
     <div className="flex flex-col h-full bg-[#14151e] text-neutral-200 overflow-y-auto">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-4 border-b border-neutral-800 shrink-0">
-        <QrGrid size={18} className="text-violet-400" />
+        <QrCode size={18} className="text-violet-400" />
         <h2 className="font-semibold text-sm tracking-wide">QR Code Generator</h2>
       </div>
 

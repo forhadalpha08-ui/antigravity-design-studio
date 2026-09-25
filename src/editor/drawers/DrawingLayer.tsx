@@ -213,7 +213,7 @@ export const DrawingLayer: React.FC<DrawingLayerProps> = ({
         strokeLinecap={strokeLinecap}
         strokeLinejoin={strokeLinejoin}
         opacity={strokeOpacity}
-        style={isEraser ? { mixBlendMode: 'destination-out' } : undefined}
+        style={isEraser ? ({ mixBlendMode: 'destination-out' } as any) : undefined}
       />
     );
   };
@@ -257,7 +257,7 @@ export const DrawingLayer: React.FC<DrawingLayerProps> = ({
           strokeLinecap="round"
           strokeLinejoin="round"
           opacity={liveIsHighlighter ? 0.4 : opacity}
-          style={liveIsEraser ? { mixBlendMode: 'destination-out' } : undefined}
+          style={liveIsEraser ? ({ mixBlendMode: 'destination-out' } as any) : undefined}
         />
       )}
     </svg>

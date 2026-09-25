@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { Template } from '../types/canvas';
 import { SnapGuide } from '../utils/math';
 
-export type ToolType = 'select' | 'hand' | 'text' | 'shape' | 'image' | 'line' | 'draw' | 'crop';
+export type ToolType = 'select' | 'hand' | 'text' | 'shape' | 'image' | 'line' | 'draw' | 'pen' | 'comment' | 'crop';
 export type DrawerType =
   | 'templates'
   | 'elements'

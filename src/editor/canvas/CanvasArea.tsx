@@ -297,7 +297,7 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
   // Mouse Down Handler
   const handleMouseDown = (e: React.MouseEvent) => {
     // Middle click or Spacebar/Hand tool -> Pan canvas
-    if (e.button === 1 || activeTool === 'hand' || e.spaceKey) {
+    if (e.button === 1 || activeTool === 'hand' || (e as any).spaceKey) {
       setIsPanning(true);
       setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
 
@@ -731,13 +731,13 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
           project={project}
           selectedId={selectedId}
           selectedIds={selectedIds}
-          activeEditingTextId={editingTextId}
-          setEditingTextId={setEditingTextId}
+          editingTextId={editingTextId}
+          onSetEditingTextId={setEditingTextId}
           showComments={showComments}
           activeCommentId={activeCommentId}
-          onSelectElement={(id, isMulti) => {
+          onSelectElement={(id, e) => {
             if (activeTool === 'select') {
-              onSelectElement(id, isMulti);
+              onSelectElement(id, (e as any)?.shiftKey);
             }
           }}
           onUpdateElement={onUpdateElement}

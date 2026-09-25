@@ -6,6 +6,7 @@ export type ElementType =
   | 'icon' 
   | 'badge'
   | 'draw'
+  | 'vector-path'
   | 'chart'
   | 'table'
   | 'qr-code';
