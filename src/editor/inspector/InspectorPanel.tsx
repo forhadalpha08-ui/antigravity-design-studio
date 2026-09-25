@@ -9,6 +9,7 @@ import { AnimationSection } from './AnimationSection';
 import { ChartSection } from './ChartSection';
 import { TableSection } from './TableSection';
 import { DrawSection } from './DrawSection';
+import { PenSection } from './PenSection';
 import { QrCodeSection } from './QrCodeSection';
 import { CANVAS_PRESETS } from '../../utils/presetSizes';
 import { Lock, Unlock, Trash2, Sliders } from 'lucide-react';
@@ -245,6 +246,14 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
         {/* Draw specific inspector */}
         {selectedElement.type === 'draw' && (
           <DrawSection
+            element={selectedElement as any}
+            onUpdate={(updates) => onUpdateElement(selectedElement.id, updates)}
+          />
+        )}
+
+        {/* Photoshop Pen Vector Path inspector */}
+        {selectedElement.type === 'vector-path' && (
+          <PenSection
             element={selectedElement as any}
             onUpdate={(updates) => onUpdateElement(selectedElement.id, updates)}
           />

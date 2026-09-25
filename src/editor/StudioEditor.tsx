@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { Project, CanvasElement, Template, CanvasBackground, CommentThread } from '../types/canvas';
+import React, { useEffect, useState } from 'react';
+import { Project, CanvasElement, Template, CanvasBackground, CommentThread, CommentReply } from '../types/canvas';
 import { EditorHeader } from './EditorHeader';
 import { LeftSidebar } from './sidebar/LeftSidebar';
 import { CanvasArea } from './canvas/CanvasArea';
@@ -12,16 +12,15 @@ import { ImagesDrawer } from './drawers/ImagesDrawer';
 import { BackgroundDrawer } from './drawers/BackgroundDrawer';
 import { BrandKitDrawer } from './drawers/BrandKitDrawer';
 import { LayersDrawer } from './drawers/LayersDrawer';
-import { AiToolsDrawer } from './drawers/AiToolsDrawer';
 import { DrawDrawer } from './drawers/DrawDrawer';
 import { ChartsDrawer } from './drawers/ChartsDrawer';
-import { TablesDrawer } from './drawers/TablesDrawer';
 import { QrCodeDrawer } from './drawers/QrCodeDrawer';
+import { TablesDrawer } from './drawers/TablesDrawer';
+import { AiToolsDrawer } from './drawers/AiToolsDrawer';
 import { CommentsDrawer } from './drawers/CommentsDrawer';
 import { SaveStatus } from '../store/useProjectStore';
 import { useEditorState } from '../store/useEditorStore';
 import { useBrandKitState } from '../store/useBrandKitStore';
-import { generateId } from '../utils/id';
 
 interface StudioEditorProps {
   project: Project;
@@ -43,11 +42,12 @@ interface StudioEditorProps {
   onUpdateCanvasSize: (w: number, h: number) => void;
   onUpdateCanvasBackground: (bg: CanvasBackground) => void;
   onApplyBrandKit: (brandKit: any) => void;
+  // Optional advanced props passed from App.tsx
   onGroupElements?: (ids: string[]) => void;
   onUngroupElements?: (groupId: string) => void;
   onAlignElements?: (ids: string[], type: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => void;
   onDistributeElements?: (ids: string[], axis: 'horizontal' | 'vertical') => void;
-  onAddComment?: (comment: CommentThread) => void;
+  onAddComment?: (comment: any) => void;
   onResolveComment?: (id: string) => void;
   onDeleteComment?: (id: string) => void;
 }
@@ -75,7 +75,6 @@ export const StudioEditor: React.FC<StudioEditorProps> = ({
   onGroupElements,
   onUngroupElements,
   onAlignElements,
-  onDistributeElements,
   onAddComment,
   onResolveComment,
   onDeleteComment,
@@ -88,7 +87,7 @@ export const StudioEditor: React.FC<StudioEditorProps> = ({
     selectedId,
     selectedIds,
     selectElement,
-    setSelection,
+    selectMultiple,
     clearSelection,
     scale,
     setScale,
@@ -101,165 +100,157 @@ export const StudioEditor: React.FC<StudioEditorProps> = ({
     setSnapGuides,
     isPlayingAnimation,
     playAnimations,
-    brushType,
-    setBrushType,
-    brushColor,
-    setBrushColor,
-    brushSize,
-    setBrushSize,
-    showComments,
-    setShowComments,
   } = useEditorState();
 
   const { brandKit, addColor, removeColor, updateFonts } = useBrandKitState();
 
-  const fitToScreenRef = useRef<() => void>(() => {});
+  // Draw tool state
+  const [brushType, setBrushType] = useState<any>('pen');
+  const [brushColor, setBrushColor] = useState('#ffffff');
+  const [brushSize, setBrushSize] = useState(4);
+
+  // Local comments state (merged with project)
+  const [localComments, setLocalComments] = useState<CommentThread[]>(project.comments || []);
+  const [showComments, setShowComments] = useState(true);
+  const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
+
+  // Fit to screen callback registered from CanvasArea
+  const fitToScreenRef = React.useRef<(() => void) | null>(null);
+
+  const handleFitToScreen = () => {
+    if (fitToScreenRef.current) {
+      fitToScreenRef.current();
+    } else {
+      resetView();
+    }
+  };
 
   const selectedElement = project.elements.find((el) => el.id === selectedId) || null;
 
-  // Keyboard Shortcuts
+  // ─── selectElement wrapper that supports isMulti flag ──────────
+  const handleSelectElement = (id: string | null, isMulti?: boolean) => {
+    if (!id) {
+      clearSelection();
+      return;
+    }
+    if (isMulti) {
+      // toggle the element in/out of selection
+      if (selectedIds.includes(id)) {
+        selectMultiple(selectedIds.filter((i) => i !== id));
+      } else {
+        selectMultiple([...selectedIds, id]);
+      }
+    } else {
+      selectElement(id);
+    }
+  };
+
+  // ─── Keyboard Shortcuts ────────────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if user is typing in an input or textarea
       const target = e.target as HTMLElement;
       if (
         target.tagName === 'INPUT' ||
         target.tagName === 'TEXTAREA' ||
         target.isContentEditable
-      ) {
-        return;
-      }
+      ) return;
 
-      // Group: Ctrl+G / Cmd+G
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g' && !e.shiftKey) {
+      if ((e.ctrlKey || e.metaKey) && e.key === '0') {
         e.preventDefault();
-        if (selectedIds.length > 1 && onGroupElements) {
-          onGroupElements(selectedIds);
-        }
+        handleFitToScreen();
         return;
       }
-
-      // Ungroup: Ctrl+Shift+G / Cmd+Shift+G
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g' && e.shiftKey) {
-        e.preventDefault();
-        if (selectedElement?.groupId && onUngroupElements) {
-          onUngroupElements(selectedElement.groupId);
-        }
-        return;
-      }
-
-      // Undo / Redo
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-        if (e.shiftKey) {
-          e.preventDefault();
-          onRedo();
-        } else {
-          e.preventDefault();
-          onUndo();
-        }
+        if (e.shiftKey) { e.preventDefault(); onRedo(); }
+        else { e.preventDefault(); onUndo(); }
         return;
       }
-
-      // Duplicate
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         if (selectedId) onDuplicateElement(selectedId);
         return;
       }
-
-      // Fit to Screen: Ctrl+0 / Cmd+0
-      if ((e.ctrlKey || e.metaKey) && e.key === '0') {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
         e.preventDefault();
-        fitToScreenRef.current?.();
+        selectMultiple(project.elements.map((el) => el.id));
         return;
       }
-
-      // Delete
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedIds.length > 0) {
-          e.preventDefault();
-          selectedIds.forEach((id) => onDeleteElement(id));
-          clearSelection();
-        } else if (selectedId) {
-          e.preventDefault();
-          onDeleteElement(selectedId);
-          selectElement(null);
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          // ungroup — find groupId of selected element
+        } else if (selectedIds.length > 1) {
+          onGroupElements?.(selectedIds);
         }
         return;
       }
-
-      // Deselect
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedId) {
+          e.preventDefault();
+          onDeleteElement(selectedId);
+          clearSelection();
+        }
+        return;
+      }
       if (e.key === 'Escape') {
         clearSelection();
-        selectElement(null);
         setActiveDrawer(null);
         return;
       }
-
-      // Tool shortcuts
-      if (e.key.toLowerCase() === 'v' && !e.ctrlKey && !e.metaKey) {
-        setActiveTool('select');
-      } else if (e.key.toLowerCase() === 'h' && !e.ctrlKey && !e.metaKey) {
-        setActiveTool('hand');
-      } else if (e.key.toLowerCase() === 'p' && !e.ctrlKey && !e.metaKey) {
+      if (e.key.toLowerCase() === 'd' && !e.ctrlKey && !e.metaKey) {
         setActiveTool('draw');
-        setActiveDrawer('draw');
+        setActiveDrawer('drawing');
+        return;
       }
-
-      // Nudge with arrow keys
       if (selectedId && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
         e.preventDefault();
         const step = e.shiftKey ? 10 : 1;
-        const targetEl = project.elements.find((el) => el.id === selectedId);
-        if (targetEl) {
-          let dx = 0;
-          let dy = 0;
+        const el = project.elements.find((el) => el.id === selectedId);
+        if (el) {
+          let dx = 0, dy = 0;
           if (e.key === 'ArrowLeft') dx = -step;
           if (e.key === 'ArrowRight') dx = step;
           if (e.key === 'ArrowUp') dy = -step;
           if (e.key === 'ArrowDown') dy = step;
-          onUpdateElement(selectedId, { x: targetEl.x + dx, y: targetEl.y + dy }, false);
+          onUpdateElement(selectedId, { x: el.x + dx, y: el.y + dy }, false);
         }
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [
-    selectedId,
-    selectedIds,
-    selectedElement,
-    project.elements,
-    onUndo,
-    onRedo,
-    onDuplicateElement,
-    onDeleteElement,
-    onUpdateElement,
-    selectElement,
-    clearSelection,
-    setActiveDrawer,
-    setActiveTool,
-    onGroupElements,
-    onUngroupElements,
-  ]);
+  }, [selectedId, selectedIds, project.elements, onUndo, onRedo, onDuplicateElement, onDeleteElement, onUpdateElement, selectElement, selectMultiple, clearSelection, setActiveDrawer, setActiveTool, onGroupElements]);
 
-  const handleAddCommentAtCoords = (x: number, y: number) => {
-    const text = window.prompt('Enter comment or design feedback:');
-    if (text && text.trim() && onAddComment) {
-      onAddComment({
-        id: generateId('cmt'),
-        x,
-        y,
-        author: 'Designer',
-        avatarColor: '#8b5cf6',
-        text: text.trim(),
-        createdAt: Date.now(),
-        resolved: false,
-        replies: [],
-      });
-      setActiveDrawer('comments');
-    }
+  // ─── Comment handlers ──────────────────────────────────────────
+  const handleAddComment = (comment: CommentThread) => {
+    setLocalComments((prev) => [...prev, comment]);
+    onAddComment?.(comment);
   };
+  const handleResolveComment = (id: string) => {
+    setLocalComments((prev) =>
+      prev.map((c) => c.id === id ? { ...c, resolved: !c.resolved } : c)
+    );
+    onResolveComment?.(id);
+  };
+  const handleDeleteComment = (id: string) => {
+    setLocalComments((prev) => prev.filter((c) => c.id !== id));
+    onDeleteComment?.(id);
+  };
+  const handleAddReply = (threadId: string, reply: CommentReply) => {
+    setLocalComments((prev) =>
+      prev.map((c) =>
+        c.id === threadId ? { ...c, replies: [...(c.replies || []), reply] } : c
+      )
+    );
+  };
+
+  // ─── Batch update for AI layout ────────────────────────────────
+  const handleBatchUpdateElements = (updatedElements: CanvasElement[]) => {
+    updatedElements.forEach((el) => {
+      onUpdateElement(el.id, { x: el.x, y: el.y, width: el.width, height: el.height });
+    });
+  };
+
+  const projectWithComments = { ...project, comments: localComments };
 
   return (
     <div className="flex flex-col w-screen h-screen bg-[#0a0a0f] select-none overflow-hidden">
@@ -274,7 +265,7 @@ export const StudioEditor: React.FC<StudioEditorProps> = ({
         onRedo={onRedo}
         onZoomIn={zoomIn}
         onZoomOut={zoomOut}
-        onResetZoom={() => fitToScreenRef.current?.()}
+        onResetZoom={handleFitToScreen}
         onBackToDashboard={onBackToDashboard}
         onUpdateTitle={onUpdateTitle}
         onOpenExportModal={onOpenExportModal}
@@ -292,91 +283,19 @@ export const StudioEditor: React.FC<StudioEditorProps> = ({
           onSelectTool={setActiveTool}
         />
 
-        {/* Sliding Left Drawers */}
-        {activeDrawer === 'ai-tools' && (
-          <AiToolsDrawer
-            canvasWidth={project.width}
-            canvasHeight={project.height}
-            elements={project.elements}
-            selectedElement={selectedElement}
-            onAddElement={onAddElement}
-            onUpdateElement={onUpdateElement}
-            onUpdateBackground={onUpdateCanvasBackground}
-          />
-        )}
-        {activeDrawer === 'templates' && (
-          <TemplatesDrawer
-            onSelectTemplate={(tpl) => {
-              onSelectTemplate(tpl);
-              setActiveDrawer(null);
-            }}
-          />
-        )}
+        {/* ── Sliding Left Drawers ── */}
+        {activeDrawer === 'templates' && <TemplatesDrawer onSelectTemplate={onSelectTemplate} />}
         {activeDrawer === 'elements' && (
-          <ElementsDrawer
-            canvasWidth={project.width}
-            canvasHeight={project.height}
-            onAddElement={onAddElement}
-          />
+          <ElementsDrawer canvasWidth={project.width} canvasHeight={project.height} onAddElement={onAddElement} />
         )}
         {activeDrawer === 'text' && (
-          <TextDrawer
-            canvasWidth={project.width}
-            canvasHeight={project.height}
-            onAddElement={(el) => {
-              onAddElement(el);
-              selectElement(el.id);
-            }}
-          />
-        )}
-        {activeDrawer === 'draw' && (
-          <DrawDrawer
-            brushType={brushType}
-            brushColor={brushColor}
-            brushSize={brushSize}
-            activeTool={activeTool}
-            onSetBrushType={setBrushType}
-            onSetBrushColor={setBrushColor}
-            onSetBrushSize={setBrushSize}
-            onSelectTool={setActiveTool}
-          />
-        )}
-        {activeDrawer === 'charts' && (
-          <ChartsDrawer
-            canvasWidth={project.width}
-            canvasHeight={project.height}
-            elementsCount={project.elements.length}
-            onAddElement={onAddElement}
-          />
-        )}
-        {activeDrawer === 'tables' && (
-          <TablesDrawer
-            canvasWidth={project.width}
-            canvasHeight={project.height}
-            elementsCount={project.elements.length}
-            onAddElement={onAddElement}
-          />
-        )}
-        {activeDrawer === 'qr' && (
-          <QrCodeDrawer
-            canvasWidth={project.width}
-            canvasHeight={project.height}
-            elementsCount={project.elements.length}
-            onAddElement={onAddElement}
-          />
+          <TextDrawer canvasWidth={project.width} canvasHeight={project.height} onAddElement={onAddElement} />
         )}
         {activeDrawer === 'images' && (
-          <ImagesDrawer
-            canvasWidth={project.width}
-            canvasHeight={project.height}
-            onAddElement={onAddElement}
-          />
+          <ImagesDrawer canvasWidth={project.width} canvasHeight={project.height} onAddElement={onAddElement} />
         )}
         {activeDrawer === 'background' && (
-          <BackgroundDrawer
-            currentBackground={project.background}
-            onUpdateBackground={onUpdateCanvasBackground}
-          />
+          <BackgroundDrawer currentBackground={project.background} onUpdateBackground={onUpdateCanvasBackground} />
         )}
         {activeDrawer === 'brand-kit' && (
           <BrandKitDrawer
@@ -398,21 +317,71 @@ export const StudioEditor: React.FC<StudioEditorProps> = ({
             onReorderLayer={onReorderLayer}
           />
         )}
+        {activeDrawer === 'drawing' && (
+          <DrawDrawer
+            brushType={brushType}
+            brushColor={brushColor}
+            brushSize={brushSize}
+            activeTool={activeTool}
+            onSetBrushType={setBrushType}
+            onSetBrushColor={setBrushColor}
+            onSetBrushSize={setBrushSize}
+            onSelectTool={setActiveTool}
+          />
+        )}
+        {activeDrawer === 'charts' && (
+          <ChartsDrawer
+            canvasWidth={project.width}
+            canvasHeight={project.height}
+            elementsCount={project.elements.length}
+            onAddElement={onAddElement}
+          />
+        )}
+        {activeDrawer === 'qr' && (
+          <QrCodeDrawer
+            canvasWidth={project.width}
+            canvasHeight={project.height}
+            elementsCount={project.elements.length}
+            onAddElement={onAddElement}
+          />
+        )}
+        {activeDrawer === 'table' && (
+          <TablesDrawer
+            canvasWidth={project.width}
+            canvasHeight={project.height}
+            elementsCount={project.elements.length}
+            onAddElement={onAddElement}
+          />
+        )}
+        {activeDrawer === 'ai' && (
+          <AiToolsDrawer
+            canvasWidth={project.width}
+            canvasHeight={project.height}
+            elements={project.elements}
+            selectedElement={selectedElement}
+            onAddElement={onAddElement}
+            onUpdateElement={onUpdateElement}
+            onUpdateBackground={onUpdateCanvasBackground}
+            onBatchUpdateElements={handleBatchUpdateElements}
+          />
+        )}
         {activeDrawer === 'comments' && (
           <CommentsDrawer
-            comments={project.comments}
+            comments={localComments}
+            activeCommentId={activeCommentId}
             showComments={showComments}
-            onToggleShowComments={() => setShowComments(!showComments)}
-            onSelectComment={(id) => {}}
-            onAddComment={onAddComment || (() => {})}
-            onResolveComment={onResolveComment || (() => {})}
-            onDeleteComment={onDeleteComment || (() => {})}
+            onToggleShowComments={() => setShowComments((v) => !v)}
+            onSelectComment={setActiveCommentId}
+            onAddComment={handleAddComment}
+            onResolveComment={handleResolveComment}
+            onDeleteComment={handleDeleteComment}
+            onAddReply={handleAddReply}
           />
         )}
 
         {/* Center Interactive Canvas Viewport */}
         <CanvasArea
-          project={project}
+          project={projectWithComments}
           scale={scale}
           pan={pan}
           activeTool={activeTool}
@@ -420,24 +389,24 @@ export const StudioEditor: React.FC<StudioEditorProps> = ({
           selectedIds={selectedIds}
           snapGuides={snapGuides}
           isPlayingAnimation={isPlayingAnimation}
+          showComments={showComments}
+          activeCommentId={activeCommentId}
           brushType={brushType}
           brushColor={brushColor}
           brushSize={brushSize}
-          showComments={showComments}
           onScaleChange={setScale}
           onPanChange={setPan}
-          onSelectElement={(id) => selectElement(id)}
-          onSetSelection={setSelection}
+          onSelectElement={handleSelectElement}
+          onSetSelection={selectMultiple}
           onUpdateElement={onUpdateElement}
-          onAddElement={onAddElement}
           onDuplicateElement={onDuplicateElement}
           onDeleteElement={onDeleteElement}
           onReorderLayer={onReorderLayer}
           onSetGuides={setSnapGuides}
+          onSelectComment={setActiveCommentId}
           onGroupElements={onGroupElements}
           onUngroupElements={onUngroupElements}
           onAlignElements={onAlignElements}
-          onAddComment={handleAddCommentAtCoords}
           onRegisterFitToScreen={(fn) => {
             fitToScreenRef.current = fn;
           }}
@@ -455,7 +424,7 @@ export const StudioEditor: React.FC<StudioEditorProps> = ({
         />
       </div>
 
-      {/* 3. OPTIONAL BOTTOM TIMELINE BAR */}
+      {/* 3. BOTTOM TIMELINE BAR */}
       <TimelineBar
         isPlaying={isPlayingAnimation}
         onTogglePlay={playAnimations}

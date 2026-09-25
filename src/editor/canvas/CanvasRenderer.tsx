@@ -7,6 +7,7 @@ import {
   ImageElement,
   LineElement,
   DrawElement,
+  VectorPathElement,
   ChartElement,
   TableElement,
   QrCodeElement,
@@ -14,6 +15,7 @@ import {
 import { getBackgroundStyle, gradientToCss } from '../../utils/color';
 import * as LucideIcons from 'lucide-react';
 import { RenderDraw } from './renderers/RenderDraw';
+import { RenderVectorPath } from './renderers/RenderVectorPath';
 import { RenderChart } from './renderers/RenderChart';
 import { RenderTable } from './renderers/RenderTable';
 import { RenderQrCode } from './renderers/RenderQrCode';
@@ -171,6 +173,9 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
 
             {/* DRAW / PEN ELEMENT */}
             {el.type === 'draw' && <RenderDraw element={el as DrawElement} />}
+
+            {/* PHOTOSHOP VECTOR PATH ELEMENT */}
+            {el.type === 'vector-path' && <RenderVectorPath element={el as VectorPathElement} />}
 
             {/* CHART ELEMENT */}
             {el.type === 'chart' && <RenderChart element={el as ChartElement} />}

@@ -7,11 +7,13 @@ import {
   ImageElement,
   LineElement,
   DrawElement,
+  VectorPathElement,
   ChartElement,
   TableElement,
   QrCodeElement,
 } from '../types/canvas';
 import { generateQrCode } from './qr';
+import { anchorsToSvgPath } from '../editor/pen/penUtils';
 
 export type ExportFormat = 'png' | 'jpg' | 'webp' | 'svg' | 'pdf';
 
@@ -178,6 +180,8 @@ export async function renderProjectToCanvas(
       drawLine(ctx, el);
     } else if (el.type === 'draw') {
       drawStroke(ctx, el as DrawElement);
+    } else if (el.type === 'vector-path') {
+      drawVectorPath(ctx, el as VectorPathElement);
     } else if (el.type === 'chart') {
       drawChart(ctx, el as ChartElement);
     } else if (el.type === 'table') {
@@ -473,6 +477,37 @@ function drawStroke(ctx: CanvasRenderingContext2D, el: DrawElement) {
   ctx.restore();
 }
 
+function drawVectorPath(ctx: CanvasRenderingContext2D, el: VectorPathElement) {
+  ctx.save();
+  const pathD = el.pathData || anchorsToSvgPath(el.anchors || [], el.closed);
+  if (!pathD) {
+    ctx.restore();
+    return;
+  }
+  const path = new Path2D(pathD);
+
+  // Fill
+  if (el.fill && el.fill !== 'none' && el.fill !== 'transparent') {
+    ctx.fillStyle = el.fill;
+    ctx.fill(path);
+  }
+
+  // Stroke
+  if (el.strokeColor && el.strokeColor !== 'none' && (el.strokeWidth || 0) > 0) {
+    ctx.strokeStyle = el.strokeColor;
+    ctx.lineWidth = el.strokeWidth || 1;
+    ctx.lineCap = (el.strokeLinecap as CanvasLineCap) || 'round';
+    ctx.lineJoin = (el.strokeLinejoin as CanvasLineJoin) || 'round';
+
+    if (el.strokeDash === 'dashed') ctx.setLineDash([8, 6]);
+    else if (el.strokeDash === 'dotted') ctx.setLineDash([3, 3]);
+    else ctx.setLineDash([]);
+
+    ctx.stroke(path);
+  }
+  ctx.restore();
+}
+
 function drawQrCode(ctx: CanvasRenderingContext2D, el: QrCodeElement) {
   const size = Math.min(el.width, el.height);
   const qr = generateQrCode(el.data || 'https://af-canvas.app', size, el.fgColor, el.bgColor);
@@ -609,6 +644,13 @@ export function generateSvgString(project: Project): string {
           }
         }
         return `<g ${transform}><path d="${dPath}" fill="none" stroke="${d.strokeColor || '#8b5cf6'}" stroke-width="${d.strokeWidth || 4}" stroke-linecap="round" stroke-linejoin="round" /></g>`;
+      }
+      if (el.type === 'vector-path') {
+        const vp = el as VectorPathElement;
+        const vPath = vp.pathData || anchorsToSvgPath(vp.anchors || [], vp.closed);
+        const fill = vp.fill && vp.fill !== 'none' ? vp.fill : 'none';
+        const stroke = vp.strokeColor && vp.strokeColor !== 'none' ? vp.strokeColor : 'none';
+        return `<g ${transform}><path d="${vPath}" fill="${fill}" stroke="${stroke}" stroke-width="${vp.strokeWidth || 0}" stroke-linecap="${vp.strokeLinecap || 'round'}" stroke-linejoin="${vp.strokeLinejoin || 'round'}" /></g>`;
       }
       if (el.type === 'qr-code') {
         const qr = el as QrCodeElement;

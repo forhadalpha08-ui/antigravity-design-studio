@@ -306,6 +306,9 @@ export const MobileEditor: React.FC<MobileEditorProps> = ({
           onUngroupElements={onUngroupElements}
           onAlignElements={onAlignElements}
           onAddComment={handleAddCommentAtCoords}
+          onRegisterFitToScreen={(fn) => {
+            // allows external triggers
+          }}
         />
 
         {/* FLOATING MOBILE CANVAS VIEW CONTROLS */}

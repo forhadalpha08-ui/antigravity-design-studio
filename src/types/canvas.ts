@@ -157,6 +157,36 @@ export interface IconElement extends BaseElement {
 // 1. Draw / Pen Tool
 export type BrushType = 'pen' | 'marker' | 'highlighter' | 'eraser';
 
+export type PhotoshopPenSubTool =
+  | 'pen'           // Standard Bézier Pen Tool
+  | 'freeform'      // Freeform Pen Tool
+  | 'curvature'     // Curvature Pen Tool
+  | 'add-anchor'    // Add Anchor Point Tool
+  | 'delete-anchor' // Delete Anchor Point Tool
+  | 'convert-point';// Convert Point Tool
+
+export interface VectorAnchor {
+  id: string;
+  x: number;
+  y: number;
+  handleIn?: { x: number; y: number };
+  handleOut?: { x: number; y: number };
+  pointType?: 'corner' | 'smooth' | 'symmetric';
+}
+
+export interface VectorPathElement extends BaseElement {
+  type: 'vector-path';
+  anchors: VectorAnchor[];
+  closed: boolean;
+  fill: string; // hex/rgba or 'none'
+  strokeColor: string;
+  strokeWidth: number;
+  strokeDash?: 'solid' | 'dashed' | 'dotted';
+  strokeLinecap?: 'round' | 'butt' | 'square';
+  strokeLinejoin?: 'round' | 'bevel' | 'miter';
+  pathData?: string;
+}
+
 export interface DrawPoint {
   x: number;
   y: number;
@@ -247,6 +277,7 @@ export type CanvasElement =
   | LineElement 
   | IconElement
   | DrawElement
+  | VectorPathElement
   | ChartElement
   | TableElement
   | QrCodeElement;

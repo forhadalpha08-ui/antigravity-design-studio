@@ -1,11 +1,26 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Project, CanvasElement, BrushType, DrawPoint, DrawElement } from '../../types/canvas';
+import {
+  Project,
+  CanvasElement,
+  BrushType,
+  DrawPoint,
+  DrawElement,
+  VectorPathElement,
+  VectorAnchor,
+  PhotoshopPenSubTool,
+} from '../../types/canvas';
 import { CanvasRenderer } from './CanvasRenderer';
 import { TransformControls } from './TransformControls';
 import { QuickElementBar } from './QuickElementBar';
 import { SnapGuide } from '../../utils/math';
 import { ToolType } from '../../store/useEditorStore';
 import { pointsToSvgPath } from './renderers/RenderDraw';
+import {
+  anchorsToSvgPath,
+  fitPointsToSmoothAnchors,
+  getAnchorsBoundingBox,
+  findClosestSegmentInsertionIndex,
+} from '../pen/penUtils';
 import { generateId } from '../../utils/id';
 
 interface CanvasAreaProps {
@@ -20,6 +35,11 @@ interface CanvasAreaProps {
   brushType?: BrushType;
   brushColor?: string;
   brushSize?: number;
+  activePenSubTool?: PhotoshopPenSubTool;
+  penFill?: string;
+  penStroke?: string;
+  penStrokeWidth?: number;
+  penClosed?: boolean;
   showComments?: boolean;
   activeCommentId?: string | null;
   onScaleChange: (scale: number) => void;
@@ -53,6 +73,11 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
   brushType = 'pen',
   brushColor = '#8b5cf6',
   brushSize = 4,
+  activePenSubTool = 'pen',
+  penFill = 'none',
+  penStroke = '#8b5cf6',
+  penStrokeWidth = 3,
+  penClosed = false,
   showComments = true,
   activeCommentId = null,
   onScaleChange,
@@ -74,22 +99,34 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
   onRegisterFitToScreen,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const canvasBoxRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
 
-  // Panning state
   const [isPanning, setIsPanning] = useState(false);
-  const panStartRef = useRef<{ clientX: number; clientY: number; panX: number; panY: number }>({
-    clientX: 0,
-    clientY: 0,
-    panX: 0,
-    panY: 0,
-  });
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
-  // Freehand Drawing State
+  // Freehand drawing state
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentDrawPoints, setCurrentDrawPoints] = useState<DrawPoint[]>([]);
 
-  // Marquee Selection State
+  // Photoshop CS6 Pen in-progress drawing state
+  const [penAnchors, setPenAnchors] = useState<VectorAnchor[]>([]);
+  const [penCursorPos, setPenCursorPos] = useState<{ x: number; y: number } | null>(null);
+  const [isHoveringFirstPenPoint, setIsHoveringFirstPenPoint] = useState(false);
+  const [isFreeformDrawing, setIsFreeformDrawing] = useState(false);
+  const [freeformPoints, setFreeformPoints] = useState<{ x: number; y: number }[]>([]);
+
+  // Editing anchor on selected VectorPathElement
+  const [selectedAnchorId, setSelectedAnchorId] = useState<string | null>(null);
+  const [draggingAnchorIndex, setDraggingAnchorIndex] = useState<number | null>(null);
+  const [draggingHandle, setDraggingHandle] = useState<{
+    anchorIndex: number;
+    handleType: 'handleIn' | 'handleOut';
+  } | null>(null);
+
+  // Inline text editing state
+  const [editingTextId, setEditingTextId] = useState<string | null>(null);
+
+  // Marquee selection state
   const [marquee, setMarquee] = useState<{
     startX: number;
     startY: number;
@@ -98,155 +135,176 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
     active: boolean;
   } | null>(null);
 
-  // Active inline text editing state
-  const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  // Convert client (screen) coordinates to canvas coordinates (unscaled)
+  const getCanvasCoords = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!canvasRef.current) return { x: 0, y: 0 };
+      const rect = canvasRef.current.getBoundingClientRect();
+      const x = (clientX - rect.left) / scale;
+      const y = (clientY - rect.top) / scale;
+      return { x, y };
+    },
+    [scale]
+  );
 
-  // Auto-fit design to visible viewport container so full width and height are completely visible
+  // Auto-fit function: calculates the exact scale so the template's full width & height are visible inside the screen
   const fitToScreen = useCallback(() => {
     if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return;
+    const container = containerRef.current.getBoundingClientRect();
+    if (container.width === 0 || container.height === 0) return;
 
-    // Comfortable breathing room: 40px padding on each side on desktop, 16px on mobile
-    const isSmall = rect.width < 640;
-    const paddingX = isSmall ? 16 : 40;
-    const paddingY = isSmall ? 20 : 40;
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024;
+    const paddingX = isMobile ? 20 : 48;
+    const paddingY = isMobile ? 24 : 48;
 
-    const availableW = Math.max(50, rect.width - paddingX * 2);
-    const availableH = Math.max(50, rect.height - paddingY * 2);
+    const availableW = Math.max(container.width - paddingX * 2, 80);
+    const availableH = Math.max(container.height - paddingY * 2, 80);
+    const scaleX = availableW / project.width;
+    const scaleY = availableH / project.height;
 
-    const s = Math.min(availableW / project.width, availableH / project.height);
-    if (s > 0) {
-      const targetScale = Math.max(0.05, Math.min(Math.round(s * 1000) / 1000, 2.5));
-      onScaleChange(targetScale);
+    // By taking Math.min(scaleX, scaleY), both width and height are 100% visible inside the screen
+    const newScale = Math.min(scaleX, scaleY);
+    if (newScale > 0) {
+      const clampedScale = Math.max(0.04, Math.min(Math.round(newScale * 1000) / 1000, 2.5));
+      onScaleChange(clampedScale);
       onPanChange({ x: 0, y: 0 });
     }
   }, [project.width, project.height, onScaleChange, onPanChange]);
 
-  // Auto-fit whenever project.id changes (new template opened) or project dimensions change
-  const lastProjectRef = useRef<{ id: string; w: number; h: number }>({ id: '', w: 0, h: 0 });
-
-  useEffect(() => {
-    const isProjectChanged =
-      lastProjectRef.current.id !== project.id ||
-      lastProjectRef.current.w !== project.width ||
-      lastProjectRef.current.h !== project.height;
-
-    if (isProjectChanged) {
-      lastProjectRef.current = { id: project.id, w: project.width, h: project.height };
-
-      // Immediate frame + short timeout guarantees layout dimensions are fully calculated
-      const raf = requestAnimationFrame(() => {
-        fitToScreen();
-      });
-      const timer = setTimeout(() => {
-        fitToScreen();
-      }, 60);
-
-      return () => {
-        cancelAnimationFrame(raf);
-        clearTimeout(timer);
-      };
-    }
-  }, [project.id, project.width, project.height, fitToScreen]);
-
-  // Auto-fit on container resize (e.g. drawer toggle or window resize) if canvas is in default centered state
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const el = containerRef.current;
-    let resizeTimer: any;
-
-    const ro = new ResizeObserver(() => {
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => {
-        if (pan.x === 0 && pan.y === 0) {
-          fitToScreen();
-        }
-      }, 100);
-    });
-
-    ro.observe(el);
-    return () => {
-      clearTimeout(resizeTimer);
-      ro.disconnect();
-    };
-  }, [pan.x, pan.y, fitToScreen]);
-
-  // Expose fitToScreen to parent component (e.g. header zoom button, shortcuts)
+  // Register fitToScreen callback for parent components (StudioEditor / header reset buttons)
   useEffect(() => {
     if (onRegisterFitToScreen) {
       onRegisterFitToScreen(fitToScreen);
     }
   }, [onRegisterFitToScreen, fitToScreen]);
 
-  // Multi-selection dragging
-  const multiDragStartRef = useRef<{
-    clientX: number;
-    clientY: number;
-    initialPositions: { id: string; x: number; y: number }[];
-  } | null>(null);
+  // Auto-fit immediately on mount, on template/dimension switch, and on window resize
+  const lastProjectIdRef = useRef<string>(project.id);
+  useEffect(() => {
+    const isProjectChange = lastProjectIdRef.current !== project.id;
+    lastProjectIdRef.current = project.id;
 
-  // Effective selected elements
-  const effectiveSelectedIds = selectedIds.length > 0 ? selectedIds : (selectedId ? [selectedId] : []);
-  const selectedElements = project.elements.filter(
-    (el) => effectiveSelectedIds.includes(el.id) && !el.hidden
-  );
-  const isMultiSelected = selectedElements.length > 1;
-  const singleSelectedElement = selectedElements.length === 1 ? selectedElements[0] : null;
+    // Use requestAnimationFrame + timeout to guarantee container layout is measured accurately
+    const rafId = requestAnimationFrame(() => {
+      fitToScreen();
+    });
 
-  // Multi-selection bounding box
-  let multiBounds = { minX: 0, minY: 0, maxX: 0, maxY: 0, width: 0, height: 0 };
-  if (isMultiSelected) {
-    const minX = Math.min(...selectedElements.map((e) => e.x));
-    const minY = Math.min(...selectedElements.map((e) => e.y));
-    const maxX = Math.max(...selectedElements.map((e) => e.x + e.width));
-    const maxY = Math.max(...selectedElements.map((e) => e.y + e.height));
-    multiBounds = { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
-  }
+    const timer = setTimeout(() => {
+      fitToScreen();
+    }, 60);
 
-  // Converts viewport client coordinates to canvas coordinate space
-  const getCanvasCoords = (clientX: number, clientY: number): { x: number; y: number } => {
-    if (!canvasBoxRef.current) return { x: 0, y: 0 };
-    const rect = canvasBoxRef.current.getBoundingClientRect();
-    return {
-      x: (clientX - rect.left) / scale,
-      y: (clientY - rect.top) / scale,
+    return () => {
+      cancelAnimationFrame(rafId);
+      clearTimeout(timer);
     };
-  };
+  }, [project.id, project.width, project.height, fitToScreen]);
 
-  // Wheel zoom / pan
+  // Observer for viewport container dimension changes
+  useEffect(() => {
+    if (!containerRef.current) return;
+    let initialFitDone = false;
+    const ro = new ResizeObserver(() => {
+      if (!initialFitDone) {
+        initialFitDone = true;
+        fitToScreen();
+      }
+    });
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, [fitToScreen]);
+
+  // Finish Photoshop Pen open path into a VectorPathElement
+  const commitPenPath = useCallback(
+    (isClosedShape: boolean = false) => {
+      if (penAnchors.length < 2 || !onAddElement) {
+        setPenAnchors([]);
+        setPenCursorPos(null);
+        return;
+      }
+
+      const bbox = getAnchorsBoundingBox(penAnchors);
+      // Normalize anchors relative to element top-left
+      const normalizedAnchors: VectorAnchor[] = penAnchors.map((a) => ({
+        ...a,
+        x: Math.round((a.x - bbox.minX) * 10) / 10,
+        y: Math.round((a.y - bbox.minY) * 10) / 10,
+      }));
+
+      const maxZ = project.elements.length > 0 ? Math.max(...project.elements.map((el) => el.zIndex)) : 0;
+      const newPathEl: VectorPathElement = {
+        id: generateId('pen'),
+        name: isClosedShape ? 'Pen Shape' : 'Pen Vector Path',
+        type: 'vector-path',
+        x: Math.round(bbox.minX),
+        y: Math.round(bbox.minY),
+        width: Math.max(20, Math.round(bbox.width)),
+        height: Math.max(20, Math.round(bbox.height)),
+        anchors: normalizedAnchors,
+        closed: isClosedShape,
+        fill: isClosedShape ? (penFill === 'none' ? '#8b5cf6' : penFill) : 'none',
+        strokeColor: penStroke || '#8b5cf6',
+        strokeWidth: penStrokeWidth || 3,
+        strokeDash: 'solid',
+        opacity: 1,
+        zIndex: maxZ + 1,
+        rotation: 0,
+        locked: false,
+        hidden: false,
+        pathData: anchorsToSvgPath(normalizedAnchors, isClosedShape),
+      };
+
+      onAddElement(newPathEl);
+      onSelectElement(newPathEl.id);
+      setPenAnchors([]);
+      setPenCursorPos(null);
+    },
+    [penAnchors, onAddElement, project.elements, penFill, penStroke, penStrokeWidth, onSelectElement]
+  );
+
+  // Keyboard shortcut listener for Pen Tool (Enter / Esc)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (activeTool === 'pen') {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          commitPenPath(penClosed);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          setPenAnchors([]);
+          setPenCursorPos(null);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeTool, penClosed, commitPenPath]);
+
+  // Wheel Zoom & Pan
   const handleWheel = (e: React.WheelEvent) => {
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
-      const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
-      const nextScale = Math.min(Math.max(scale * zoomFactor, 0.15), 3);
-      onScaleChange(nextScale);
+      const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+      const nextScale = Math.min(Math.max(scale * zoomFactor, 0.05), 5);
+      onScaleChange(Math.round(nextScale * 1000) / 1000);
     } else {
       onPanChange({
-        x: pan.x - e.deltaX * 0.8,
-        y: pan.y - e.deltaY * 0.8,
+        x: pan.x - e.deltaX,
+        y: pan.y - e.deltaY,
       });
     }
   };
 
-  // Middle click or Hand tool drag
+  // Mouse Down Handler
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button === 1 || activeTool === 'hand') {
-      e.preventDefault();
+    // Middle click or Spacebar/Hand tool -> Pan canvas
+    if (e.button === 1 || activeTool === 'hand' || e.spaceKey) {
       setIsPanning(true);
-      panStartRef.current = {
-        clientX: e.clientX,
-        clientY: e.clientY,
-        panX: pan.x,
-        panY: pan.y,
-      };
+      setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
 
       const onMouseMove = (ev: MouseEvent) => {
-        const dx = ev.clientX - panStartRef.current.clientX;
-        const dy = ev.clientY - panStartRef.current.clientY;
         onPanChange({
-          x: panStartRef.current.panX + dx,
-          y: panStartRef.current.panY + dy,
+          x: ev.clientX - panStart.x,
+          y: ev.clientY - panStart.y,
         });
       };
 
@@ -261,7 +319,7 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
       return;
     }
 
-    // Comment Placement Tool
+    // Comment placement tool
     if (activeTool === 'comment' && e.button === 0) {
       const coords = getCanvasCoords(e.clientX, e.clientY);
       if (
@@ -270,14 +328,12 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
         coords.y >= 0 &&
         coords.y <= project.height
       ) {
-        if (onAddComment) {
-          onAddComment(Math.round(coords.x), Math.round(coords.y));
-        }
+        if (onAddComment) onAddComment(Math.round(coords.x), Math.round(coords.y));
       }
       return;
     }
 
-    // Freehand Drawing Tool
+    // Freehand Draw Tool
     if (activeTool === 'draw' && e.button === 0) {
       const coords = getCanvasCoords(e.clientX, e.clientY);
       setIsDrawing(true);
@@ -295,7 +351,6 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
 
         setCurrentDrawPoints((points) => {
           if (points.length < 2 || !onAddElement) return [];
-
           const minX = Math.min(...points.map((p) => p.x));
           const minY = Math.min(...points.map((p) => p.y));
           const maxX = Math.max(...points.map((p) => p.x));
@@ -303,7 +358,6 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
           const width = Math.max(20, Math.round(maxX - minX));
           const height = Math.max(20, Math.round(maxY - minY));
 
-          // Normalize points relative to element top-left
           const normalizedPoints: DrawPoint[] = points.map((p) => ({
             x: Math.round((p.x - minX) * 10) / 10,
             y: Math.round((p.y - minY) * 10) / 10,
@@ -339,6 +393,166 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
       return;
     }
 
+    // PHOTOSHOP CS6 PEN SUITE
+    if (activeTool === 'pen' && e.button === 0) {
+      const coords = getCanvasCoords(e.clientX, e.clientY);
+
+      // 1. FREEFORM PEN TOOL
+      if (activePenSubTool === 'freeform') {
+        setIsFreeformDrawing(true);
+        setFreeformPoints([coords]);
+
+        const onMouseMove = (ev: MouseEvent) => {
+          const c = getCanvasCoords(ev.clientX, ev.clientY);
+          setFreeformPoints((prev) => [...prev, c]);
+        };
+
+        const onMouseUp = () => {
+          setIsFreeformDrawing(false);
+          window.removeEventListener('mousemove', onMouseMove);
+          window.removeEventListener('mouseup', onMouseUp);
+
+          setFreeformPoints((pts) => {
+            if (pts.length < 3 || !onAddElement) return [];
+            const fittedAnchors = fitPointsToSmoothAnchors(pts, penClosed);
+            const bbox = getAnchorsBoundingBox(fittedAnchors);
+
+            const normalizedAnchors = fittedAnchors.map((a) => ({
+              ...a,
+              x: Math.round((a.x - bbox.minX) * 10) / 10,
+              y: Math.round((a.y - bbox.minY) * 10) / 10,
+            }));
+
+            const maxZ = project.elements.length > 0 ? Math.max(...project.elements.map((el) => el.zIndex)) : 0;
+            const newEl: VectorPathElement = {
+              id: generateId('pen'),
+              name: 'Freeform Vector Path',
+              type: 'vector-path',
+              x: Math.round(bbox.minX),
+              y: Math.round(bbox.minY),
+              width: Math.max(20, Math.round(bbox.width)),
+              height: Math.max(20, Math.round(bbox.height)),
+              anchors: normalizedAnchors,
+              closed: penClosed,
+              fill: penClosed ? (penFill === 'none' ? '#8b5cf6' : penFill) : 'none',
+              strokeColor: penStroke,
+              strokeWidth: penStrokeWidth,
+              opacity: 1,
+              zIndex: maxZ + 1,
+              rotation: 0,
+              locked: false,
+              hidden: false,
+              pathData: anchorsToSvgPath(normalizedAnchors, penClosed),
+            };
+
+            onAddElement(newEl);
+            onSelectElement(newEl.id);
+            return [];
+          });
+        };
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+        return;
+      }
+
+      // 2. CURVATURE PEN TOOL
+      if (activePenSubTool === 'curvature') {
+        if (penAnchors.length >= 3 && isHoveringFirstPenPoint) {
+          // Close loop
+          commitPenPath(true);
+          return;
+        }
+
+        const rawPoints = [...penAnchors.map((a) => ({ x: a.x, y: a.y })), coords];
+        const newSmoothAnchors = fitPointsToSmoothAnchors(rawPoints, false);
+        setPenAnchors(newSmoothAnchors);
+        return;
+      }
+
+      // 3. STANDARD BÉZIER PEN TOOL
+      if (activePenSubTool === 'pen') {
+        // Check if clicking on first anchor point to close loop
+        if (penAnchors.length >= 3 && isHoveringFirstPenPoint) {
+          commitPenPath(true);
+          return;
+        }
+
+        const newAnchorIndex = penAnchors.length;
+        const newAnchor: VectorAnchor = {
+          id: `a_${Date.now()}_${newAnchorIndex}`,
+          x: coords.x,
+          y: coords.y,
+          pointType: 'corner',
+        };
+
+        setPenAnchors((prev) => [...prev, newAnchor]);
+
+        // Drag handle creation
+        const onMouseMove = (ev: MouseEvent) => {
+          const c = getCanvasCoords(ev.clientX, ev.clientY);
+          const dx = c.x - coords.x;
+          const dy = c.y - coords.y;
+
+          if (Math.hypot(dx, dy) > 3) {
+            setPenAnchors((prev) => {
+              const next = [...prev];
+              if (next[newAnchorIndex]) {
+                next[newAnchorIndex] = {
+                  ...next[newAnchorIndex],
+                  pointType: 'smooth',
+                  handleOut: { x: dx, y: dy },
+                  handleIn: { x: -dx, y: -dy },
+                };
+              }
+              return next;
+            });
+          }
+        };
+
+        const onMouseUp = () => {
+          window.removeEventListener('mousemove', onMouseMove);
+          window.removeEventListener('mouseup', onMouseUp);
+        };
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+        return;
+      }
+
+      // 4. ADD ANCHOR POINT TOOL
+      if (activePenSubTool === 'add-anchor') {
+        const selectedEl = project.elements.find((el) => el.id === selectedId);
+        if (selectedEl && selectedEl.type === 'vector-path') {
+          const vp = selectedEl as VectorPathElement;
+          const localCoords = { x: coords.x - vp.x, y: coords.y - vp.y };
+          const { insertIndex, distance } = findClosestSegmentInsertionIndex(
+            vp.anchors,
+            localCoords,
+            vp.closed
+          );
+
+          if (distance < 20 / scale) {
+            const newAnchors = [...vp.anchors];
+            newAnchors.splice(insertIndex, 0, {
+              id: `a_${Date.now()}`,
+              x: localCoords.x,
+              y: localCoords.y,
+              pointType: 'smooth',
+              handleIn: { x: -15, y: 0 },
+              handleOut: { x: 15, y: 0 },
+            });
+
+            onUpdateElement(vp.id, {
+              anchors: newAnchors,
+              pathData: anchorsToSvgPath(newAnchors, vp.closed),
+            });
+          }
+        }
+        return;
+      }
+    }
+
     // Marquee Drag Selection (when clicking on background with select tool)
     if (activeTool === 'select' && e.button === 0 && e.target === e.currentTarget) {
       const coords = getCanvasCoords(e.clientX, e.clientY);
@@ -366,18 +580,18 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
           const y1 = Math.min(prev.startY, prev.currentY);
           const y2 = Math.max(prev.startY, prev.currentY);
 
-          // If dragged more than 6px, select intersecting elements
           if (x2 - x1 > 6 || y2 - y1 > 6) {
-            const hits = project.elements.filter(
-              (el) =>
-                !el.hidden &&
-                el.x < x2 &&
-                el.x + el.width > x1 &&
-                el.y < y2 &&
-                el.y + el.height > y1
-            );
-            if (onSetSelection) {
-              onSetSelection(hits.map((h) => h.id));
+            const intersecting = project.elements.filter((el) => {
+              if (el.hidden || el.locked) return false;
+              const elX2 = el.x + el.width;
+              const elY2 = el.y + el.height;
+              return el.x < x2 && elX2 > x1 && el.y < y2 && elY2 > y1;
+            });
+
+            if (intersecting.length > 0 && onSetSelection) {
+              onSetSelection(intersecting.map((el) => el.id));
+            } else {
+              onSelectElement(null);
             }
           } else {
             onSelectElement(null);
@@ -388,251 +602,151 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
 
       window.addEventListener('mousemove', onMouseMove);
       window.addEventListener('mouseup', onMouseUp);
+      return;
     }
   };
 
-  // Touch panning and pinch zoom
-  const touchStartRef = useRef<{
-    dist: number;
-    scaleStart: number;
-    panX: number;
-    panY: number;
-    clientX: number;
-    clientY: number;
-  } | null>(null);
+  // Mouse Move over Canvas Area (Tracks Pen Rubber-Band Preview & Close Hover)
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (activeTool === 'pen') {
+      const coords = getCanvasCoords(e.clientX, e.clientY);
+      setPenCursorPos(coords);
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length === 1) {
-      if (activeTool === 'hand') {
-        const touch = e.touches[0];
-        setIsPanning(true);
-        panStartRef.current = {
-          clientX: touch.clientX,
-          clientY: touch.clientY,
-          panX: pan.x,
-          panY: pan.y,
-        };
-      } else if (activeTool === 'draw') {
-        const touch = e.touches[0];
-        const coords = getCanvasCoords(touch.clientX, touch.clientY);
-        setIsDrawing(true);
-        setCurrentDrawPoints([coords]);
+      if (penAnchors.length >= 3) {
+        const first = penAnchors[0];
+        const dist = Math.hypot(coords.x - first.x, coords.y - first.y);
+        setIsHoveringFirstPenPoint(dist < 18 / scale);
+      } else {
+        setIsHoveringFirstPenPoint(false);
       }
-    } else if (e.touches.length === 2) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-      touchStartRef.current = {
-        dist,
-        scaleStart: scale,
-        panX: pan.x,
-        panY: pan.y,
-        clientX: midX,
-        clientY: midY,
-      };
     }
   };
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (e.touches.length === 1) {
-      if (isPanning || activeTool === 'hand') {
-        const touch = e.touches[0];
-        const dx = touch.clientX - panStartRef.current.clientX;
-        const dy = touch.clientY - panStartRef.current.clientY;
-        onPanChange({
-          x: panStartRef.current.panX + dx,
-          y: panStartRef.current.panY + dy,
-        });
-      } else if (isDrawing && activeTool === 'draw') {
-        const touch = e.touches[0];
-        const coords = getCanvasCoords(touch.clientX, touch.clientY);
-        setCurrentDrawPoints((prev) => [...prev, coords]);
-      }
-    } else if (e.touches.length === 2 && touchStartRef.current) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const factor = dist / touchStartRef.current.dist;
-      const nextScale = Math.min(Math.max(touchStartRef.current.scaleStart * factor, 0.12), 4);
-      onScaleChange(nextScale);
-
-      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-      const panDx = midX - touchStartRef.current.clientX;
-      const panDy = midY - touchStartRef.current.clientY;
-      onPanChange({
-        x: touchStartRef.current.panX + panDx,
-        y: touchStartRef.current.panY + panDy,
-      });
-    }
-  };
-
-  const handleTouchEnd = () => {
-    if (isDrawing && activeTool === 'draw') {
-      setIsDrawing(false);
-      if (currentDrawPoints.length >= 2 && onAddElement) {
-        const minX = Math.min(...currentDrawPoints.map((p) => p.x));
-        const minY = Math.min(...currentDrawPoints.map((p) => p.y));
-        const maxX = Math.max(...currentDrawPoints.map((p) => p.x));
-        const maxY = Math.max(...currentDrawPoints.map((p) => p.y));
-        const width = Math.max(20, Math.round(maxX - minX));
-        const height = Math.max(20, Math.round(maxY - minY));
-
-        const normalizedPoints: DrawPoint[] = currentDrawPoints.map((p) => ({
-          x: Math.round((p.x - minX) * 10) / 10,
-          y: Math.round((p.y - minY) * 10) / 10,
-        }));
-
-        const maxZ = project.elements.length > 0 ? Math.max(...project.elements.map((el) => el.zIndex)) : 0;
-        const newDrawElement: DrawElement = {
-          id: generateId('draw'),
-          name: 'Drawing',
-          type: 'draw',
-          x: Math.round(minX),
-          y: Math.round(minY),
-          width,
-          height,
-          points: normalizedPoints,
-          strokeColor: brushColor,
-          strokeWidth: brushSize,
-          brushType,
-          opacity: 1,
-          zIndex: maxZ + 1,
-          rotation: 0,
-          locked: false,
-          hidden: false,
-        };
-
-        onAddElement(newDrawElement);
-      }
-      setCurrentDrawPoints([]);
-    }
-    setIsPanning(false);
-    touchStartRef.current = null;
-  };
-
-  // Multi-selection element drag handler
+  // Multi-Selection Drag Handling
   const handleMultiDragStart = (e: React.MouseEvent) => {
     e.stopPropagation();
-    multiDragStartRef.current = {
-      clientX: e.clientX,
-      clientY: e.clientY,
-      initialPositions: selectedElements.map((el) => ({ id: el.id, x: el.x, y: el.y })),
-    };
+    const startX = e.clientX;
+    const startY = e.clientY;
+
+    const initialPositions = new Map<string, { x: number; y: number }>();
+    project.elements
+      .filter((el) => effectiveSelectedIds.includes(el.id))
+      .forEach((el) => {
+        initialPositions.set(el.id, { x: el.x, y: el.y });
+      });
 
     const onMouseMove = (ev: MouseEvent) => {
-      if (!multiDragStartRef.current) return;
-      const dx = (ev.clientX - multiDragStartRef.current.clientX) / scale;
-      const dy = (ev.clientY - multiDragStartRef.current.clientY) / scale;
+      const dx = (ev.clientX - startX) / scale;
+      const dy = (ev.clientY - startY) / scale;
 
-      multiDragStartRef.current.initialPositions.forEach((pos) => {
-        onUpdateElement(pos.id, { x: Math.round(pos.x + dx), y: Math.round(pos.y + dy) }, false);
+      initialPositions.forEach((pos, id) => {
+        onUpdateElement(id, {
+          x: Math.round(pos.x + dx),
+          y: Math.round(pos.y + dy),
+        });
       });
     };
 
     const onMouseUp = () => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
-      multiDragStartRef.current = null;
     };
 
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
   };
 
-  // Handle element selection from renderer
-  const handleSelectElementFromRenderer = (id: string, e: React.MouseEvent | React.TouchEvent) => {
-    const isShift = 'shiftKey' in e && e.shiftKey;
+  // Selection state
+  const effectiveSelectedIds = selectedIds.length > 0 ? selectedIds : selectedId ? [selectedId] : [];
+  const selectedElements = project.elements.filter((el) => effectiveSelectedIds.includes(el.id));
+  const isMultiSelected = selectedElements.length > 1;
+  const singleSelectedElement =
+    selectedElements.length === 1 ? selectedElements[0] : null;
 
-    if (!id) {
-      onSelectElement(null, false);
-      return;
-    }
+  // Selected Vector Path for interactive anchor editing
+  const selectedVectorPath =
+    singleSelectedElement && singleSelectedElement.type === 'vector-path'
+      ? (singleSelectedElement as VectorPathElement)
+      : null;
 
-    const clickedEl = project.elements.find((el) => el.id === id);
+  // Multi-selection bounding box calculation
+  const multiBounds = React.useMemo(() => {
+    if (selectedElements.length === 0) return { minX: 0, minY: 0, width: 0, height: 0 };
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
 
-    // If part of a group and not shift-clicking, select the entire group
-    if (clickedEl?.groupId && onSetSelection && !isShift) {
-      const groupMembers = project.elements
-        .filter((el) => el.groupId === clickedEl.groupId)
-        .map((el) => el.id);
-      onSetSelection(groupMembers);
-      return;
-    }
+    selectedElements.forEach((el) => {
+      minX = Math.min(minX, el.x);
+      minY = Math.min(minY, el.y);
+      maxX = Math.max(maxX, el.x + el.width);
+      maxY = Math.max(maxY, el.y + el.height);
+    });
 
-    if (isShift && onSetSelection) {
-      const current = selectedIds.length > 0 ? selectedIds : (selectedId ? [selectedId] : []);
-      if (current.includes(id)) {
-        onSetSelection(current.filter((item) => item !== id));
-      } else {
-        onSetSelection([...current, id]);
-      }
-    } else {
-      onSelectElement(id, false);
-    }
-  };
+    return {
+      minX,
+      minY,
+      width: maxX - minX,
+      height: maxY - minY,
+    };
+  }, [selectedElements]);
 
   return (
     <div
       ref={containerRef}
-      className={`relative flex-1 w-full h-full overflow-hidden bg-[#0c0d12] flex items-center justify-center ${
-        activeTool === 'hand' || isPanning
+      onWheel={handleWheel}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onDoubleClick={() => {
+        if (activeTool === 'pen' && penAnchors.length >= 2) {
+          commitPenPath(penClosed);
+        }
+      }}
+      className={`relative flex-1 h-full w-full overflow-hidden flex items-center justify-center bg-[#07080c] select-none ${
+        isPanning || activeTool === 'hand'
           ? 'cursor-grab active:cursor-grabbing'
           : activeTool === 'draw'
           ? 'cursor-crosshair'
+          : activeTool === 'pen'
+          ? 'cursor-crosshair'
           : activeTool === 'comment'
-          ? 'cursor-pointer'
+          ? 'cursor-crosshair'
           : 'cursor-default'
       }`}
-      onWheel={handleWheel}
-      onMouseDown={handleMouseDown}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          onSelectElement(null);
-        }
-      }}
     >
-      {/* Background Subtle Dot Matrix Grid */}
+      {/* Scaled & Centered Canvas Artboard */}
       <div
-        className="absolute inset-0 pointer-events-none opacity-20"
+        ref={canvasRef}
+        className="relative bg-white shadow-2xl transition-shadow"
         style={{
-          backgroundImage:
-            'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.15) 1px, transparent 0)',
-          backgroundSize: '24px 24px',
-        }}
-      />
-
-      {/* Viewport Transform Container */}
-      <div
-        ref={canvasBoxRef}
-        className="relative transition-transform duration-75 origin-center will-change-transform shadow-2xl"
-        style={{
+          width: `${project.width}px`,
+          height: `${project.height}px`,
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
+          transformOrigin: 'center center',
         }}
       >
-        {/* Render Canvas Elements */}
+        {/* Core Canvas Element Renderer */}
         <CanvasRenderer
           project={project}
-          selectedId={singleSelectedElement?.id || null}
-          selectedIds={effectiveSelectedIds}
-          editingTextId={editingTextId}
-          onSetEditingTextId={setEditingTextId}
-          onSelectElement={handleSelectElementFromRenderer}
-          onUpdateElement={onUpdateElement}
-          isPlayingAnimation={isPlayingAnimation}
+          selectedId={selectedId}
+          selectedIds={selectedIds}
+          activeEditingTextId={editingTextId}
+          setEditingTextId={setEditingTextId}
           showComments={showComments}
           activeCommentId={activeCommentId}
+          onSelectElement={(id, isMulti) => {
+            if (activeTool === 'select') {
+              onSelectElement(id, isMulti);
+            }
+          }}
+          onUpdateElement={onUpdateElement}
           onSelectComment={onSelectComment}
         />
 
-        {/* Live In-Progress Drawing Stroke Overlay */}
+        {/* FREEHAND DRAWING LIVE PREVIEW */}
         {isDrawing && currentDrawPoints.length > 1 && (
-          <div className="absolute inset-0 pointer-events-none z-[10005]">
+          <div className="absolute inset-0 pointer-events-none z-[9998]">
             <svg
               viewBox={`0 0 ${project.width} ${project.height}`}
               className="w-full h-full overflow-visible"
@@ -646,6 +760,329 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
                 strokeLinejoin="round"
                 opacity={brushType === 'highlighter' ? 0.45 : brushType === 'marker' ? 0.85 : 1}
               />
+            </svg>
+          </div>
+        )}
+
+        {/* PHOTOSHOP FREEFORM PEN LIVE PREVIEW */}
+        {isFreeformDrawing && freeformPoints.length > 1 && (
+          <div className="absolute inset-0 pointer-events-none z-[9998]">
+            <svg
+              viewBox={`0 0 ${project.width} ${project.height}`}
+              className="w-full h-full overflow-visible"
+            >
+              <path
+                d={pointsToSvgPath(freeformPoints)}
+                fill="none"
+                stroke={penStroke}
+                strokeWidth={penStrokeWidth}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+        )}
+
+        {/* PHOTOSHOP BÉZIER / CURVATURE PEN LIVE PREVIEW OVERLAY */}
+        {activeTool === 'pen' && penAnchors.length > 0 && (
+          <div className="absolute inset-0 pointer-events-none z-[9999]">
+            <svg
+              viewBox={`0 0 ${project.width} ${project.height}`}
+              className="w-full h-full overflow-visible"
+            >
+              {/* Completed Path Segments */}
+              <path
+                d={anchorsToSvgPath(penAnchors, false)}
+                fill="none"
+                stroke={penStroke}
+                strokeWidth={penStrokeWidth}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+
+              {/* Rubber-band preview line from last anchor to cursor */}
+              {penCursorPos && (
+                <line
+                  x1={penAnchors[penAnchors.length - 1].x}
+                  y1={penAnchors[penAnchors.length - 1].y}
+                  x2={isHoveringFirstPenPoint ? penAnchors[0].x : penCursorPos.x}
+                  y2={isHoveringFirstPenPoint ? penAnchors[0].y : penCursorPos.y}
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  strokeDasharray="4 4"
+                />
+              )}
+
+              {/* Anchor Points Handles */}
+              {penAnchors.map((anchor, idx) => {
+                const isFirst = idx === 0;
+                return (
+                  <g key={anchor.id}>
+                    {/* Control Handles (if smooth) */}
+                    {anchor.handleIn && (
+                      <>
+                        <line
+                          x1={anchor.x}
+                          y1={anchor.y}
+                          x2={anchor.x + anchor.handleIn.x}
+                          y2={anchor.y + anchor.handleIn.y}
+                          stroke="#60a5fa"
+                          strokeWidth={1.5}
+                        />
+                        <circle
+                          cx={anchor.x + anchor.handleIn.x}
+                          cy={anchor.y + anchor.handleIn.y}
+                          r={4 / scale}
+                          fill="#3b82f6"
+                          stroke="#ffffff"
+                          strokeWidth={1.5}
+                        />
+                      </>
+                    )}
+                    {anchor.handleOut && (
+                      <>
+                        <line
+                          x1={anchor.x}
+                          y1={anchor.y}
+                          x2={anchor.x + anchor.handleOut.x}
+                          y2={anchor.y + anchor.handleOut.y}
+                          stroke="#60a5fa"
+                          strokeWidth={1.5}
+                        />
+                        <circle
+                          cx={anchor.x + anchor.handleOut.x}
+                          cy={anchor.y + anchor.handleOut.y}
+                          r={4 / scale}
+                          fill="#3b82f6"
+                          stroke="#ffffff"
+                          strokeWidth={1.5}
+                        />
+                      </>
+                    )}
+
+                    {/* Anchor square knob */}
+                    <rect
+                      x={anchor.x - 5 / scale}
+                      y={anchor.y - 5 / scale}
+                      width={10 / scale}
+                      height={10 / scale}
+                      fill={isFirst && isHoveringFirstPenPoint ? '#10b981' : '#2563eb'}
+                      stroke="#ffffff"
+                      strokeWidth={1.5 / scale}
+                      className="transition-colors"
+                    />
+
+                    {/* Close loop indicator circle when hovering first point */}
+                    {isFirst && isHoveringFirstPenPoint && (
+                      <circle
+                        cx={anchor.x}
+                        cy={anchor.y}
+                        r={12 / scale}
+                        fill="none"
+                        stroke="#10b981"
+                        strokeWidth={2 / scale}
+                        strokeDasharray="2 2"
+                      />
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+        )}
+
+        {/* INTERACTIVE VECTOR PATH ANCHORS EDITING OVERLAY FOR SELECTED VECTOR PATH */}
+        {selectedVectorPath && (
+          <div className="absolute inset-0 pointer-events-none z-[9999]">
+            <svg
+              viewBox={`0 0 ${project.width} ${project.height}`}
+              className="w-full h-full overflow-visible"
+            >
+              {selectedVectorPath.anchors?.map((anchor, idx) => {
+                const absX = selectedVectorPath.x + anchor.x;
+                const absY = selectedVectorPath.y + anchor.y;
+
+                return (
+                  <g key={anchor.id} className="pointer-events-auto cursor-pointer">
+                    {/* Handle In */}
+                    {anchor.handleIn && (
+                      <>
+                        <line
+                          x1={absX}
+                          y1={absY}
+                          x2={absX + anchor.handleIn.x}
+                          y2={absY + anchor.handleIn.y}
+                          stroke="#93c5fd"
+                          strokeWidth={1.5}
+                        />
+                        <circle
+                          cx={absX + anchor.handleIn.x}
+                          cy={absY + anchor.handleIn.y}
+                          r={5 / scale}
+                          fill="#2563eb"
+                          stroke="#ffffff"
+                          strokeWidth={1.5}
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            const startCoords = getCanvasCoords(e.clientX, e.clientY);
+                            const initHandle = { ...anchor.handleIn! };
+
+                            const onMouseMove = (ev: MouseEvent) => {
+                              const curr = getCanvasCoords(ev.clientX, ev.clientY);
+                              const dx = curr.x - absX;
+                              const dy = curr.y - absY;
+
+                              const nextAnchors = [...selectedVectorPath.anchors];
+                              nextAnchors[idx] = {
+                                ...nextAnchors[idx],
+                                handleIn: { x: dx, y: dy },
+                              };
+
+                              onUpdateElement(selectedVectorPath.id, {
+                                anchors: nextAnchors,
+                                pathData: anchorsToSvgPath(nextAnchors, selectedVectorPath.closed),
+                              });
+                            };
+
+                            const onMouseUp = () => {
+                              window.removeEventListener('mousemove', onMouseMove);
+                              window.removeEventListener('mouseup', onMouseUp);
+                            };
+
+                            window.addEventListener('mousemove', onMouseMove);
+                            window.addEventListener('mouseup', onMouseUp);
+                          }}
+                        />
+                      </>
+                    )}
+
+                    {/* Handle Out */}
+                    {anchor.handleOut && (
+                      <>
+                        <line
+                          x1={absX}
+                          y1={absY}
+                          x2={absX + anchor.handleOut.x}
+                          y2={absY + anchor.handleOut.y}
+                          stroke="#93c5fd"
+                          strokeWidth={1.5}
+                        />
+                        <circle
+                          cx={absX + anchor.handleOut.x}
+                          cy={absY + anchor.handleOut.y}
+                          r={5 / scale}
+                          fill="#2563eb"
+                          stroke="#ffffff"
+                          strokeWidth={1.5}
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            const onMouseMove = (ev: MouseEvent) => {
+                              const curr = getCanvasCoords(ev.clientX, ev.clientY);
+                              const dx = curr.x - absX;
+                              const dy = curr.y - absY;
+
+                              const nextAnchors = [...selectedVectorPath.anchors];
+                              nextAnchors[idx] = {
+                                ...nextAnchors[idx],
+                                handleOut: { x: dx, y: dy },
+                              };
+
+                              onUpdateElement(selectedVectorPath.id, {
+                                anchors: nextAnchors,
+                                pathData: anchorsToSvgPath(nextAnchors, selectedVectorPath.closed),
+                              });
+                            };
+
+                            const onMouseUp = () => {
+                              window.removeEventListener('mousemove', onMouseMove);
+                              window.removeEventListener('mouseup', onMouseUp);
+                            };
+
+                            window.addEventListener('mousemove', onMouseMove);
+                            window.addEventListener('mouseup', onMouseUp);
+                          }}
+                        />
+                      </>
+                    )}
+
+                    {/* Anchor square handle */}
+                    <rect
+                      x={absX - 6 / scale}
+                      y={absY - 6 / scale}
+                      width={12 / scale}
+                      height={12 / scale}
+                      fill={selectedAnchorId === anchor.id ? '#ec4899' : '#3b82f6'}
+                      stroke="#ffffff"
+                      strokeWidth={2 / scale}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // If Delete Anchor Tool is active, remove this anchor
+                        if (activePenSubTool === 'delete-anchor') {
+                          if (selectedVectorPath.anchors.length > 2) {
+                            const filtered = selectedVectorPath.anchors.filter((_, i) => i !== idx);
+                            onUpdateElement(selectedVectorPath.id, {
+                              anchors: filtered,
+                              pathData: anchorsToSvgPath(filtered, selectedVectorPath.closed),
+                            });
+                          }
+                          return;
+                        }
+
+                        // If Convert Point Tool is active, toggle corner vs smooth
+                        if (activePenSubTool === 'convert-point') {
+                          const isCorner = anchor.pointType === 'corner' || (!anchor.handleIn && !anchor.handleOut);
+                          const nextAnchors = [...selectedVectorPath.anchors];
+                          nextAnchors[idx] = {
+                            ...nextAnchors[idx],
+                            pointType: isCorner ? 'smooth' : 'corner',
+                            handleIn: isCorner ? { x: -20, y: 0 } : undefined,
+                            handleOut: isCorner ? { x: 20, y: 0 } : undefined,
+                          };
+                          onUpdateElement(selectedVectorPath.id, {
+                            anchors: nextAnchors,
+                            pathData: anchorsToSvgPath(nextAnchors, selectedVectorPath.closed),
+                          });
+                          return;
+                        }
+
+                        setSelectedAnchorId(anchor.id);
+                      }}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        const startCoords = getCanvasCoords(e.clientX, e.clientY);
+                        const initX = anchor.x;
+                        const initY = anchor.y;
+
+                        const onMouseMove = (ev: MouseEvent) => {
+                          const curr = getCanvasCoords(ev.clientX, ev.clientY);
+                          const dx = curr.x - startCoords.x;
+                          const dy = curr.y - startCoords.y;
+
+                          const nextAnchors = [...selectedVectorPath.anchors];
+                          nextAnchors[idx] = {
+                            ...nextAnchors[idx],
+                            x: Math.round((initX + dx) * 10) / 10,
+                            y: Math.round((initY + dy) * 10) / 10,
+                          };
+
+                          onUpdateElement(selectedVectorPath.id, {
+                            anchors: nextAnchors,
+                            pathData: anchorsToSvgPath(nextAnchors, selectedVectorPath.closed),
+                          });
+                        };
+
+                        const onMouseUp = () => {
+                          window.removeEventListener('mousemove', onMouseMove);
+                          window.removeEventListener('mouseup', onMouseUp);
+                        };
+
+                        window.addEventListener('mousemove', onMouseMove);
+                        window.addEventListener('mouseup', onMouseUp);
+                      }}
+                    />
+                  </g>
+                );
+              })}
             </svg>
           </div>
         )}
@@ -664,6 +1101,7 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
               onSetGuides={onSetGuides}
             />
 
+            {/* ENLARGED COUNTER-SCALED QUICK OPTIONS SECTION */}
             <QuickElementBar
               element={singleSelectedElement}
               selectedIds={effectiveSelectedIds}
@@ -686,7 +1124,7 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
         {isMultiSelected && (
           <>
             <div
-              className="absolute border-2 border-dashed border-violet-500 bg-violet-500/10 z-[9999] cursor-move flex items-center justify-center rounded"
+              className="absolute border-2 border-dashed border-violet-500 bg-violet-500/10 z-[9999] cursor-move flex items-center justify-center rounded-xl"
               style={{
                 left: `${multiBounds.minX}px`,
                 top: `${multiBounds.minY}px`,
@@ -695,11 +1133,12 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
               }}
               onMouseDown={handleMultiDragStart}
             >
-              <span className="bg-violet-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow pointer-events-none select-none">
+              <span className="bg-violet-600 text-white text-xs font-bold px-2.5 py-1 rounded-lg shadow-lg pointer-events-none select-none">
                 {selectedElements.length} Items Selected
               </span>
             </div>
 
+            {/* ENLARGED COUNTER-SCALED QUICK OPTIONS SECTION FOR MULTI-SELECTION */}
             <QuickElementBar
               element={{
                 id: 'multi',
@@ -733,7 +1172,7 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
         {/* Marquee Selection Box */}
         {marquee && marquee.active && (
           <div
-            className="absolute border border-violet-400 bg-violet-500/20 pointer-events-none z-[10003] rounded-sm"
+            className="absolute border-2 border-violet-400 bg-violet-500/20 pointer-events-none z-[10003] rounded"
             style={{
               left: `${Math.min(marquee.startX, marquee.currentX)}px`,
               top: `${Math.min(marquee.startY, marquee.currentY)}px`,
@@ -754,17 +1193,17 @@ export const CanvasArea: React.FC<CanvasAreaProps> = ({
                     left: `${guide.position}px`,
                     top: 0,
                     bottom: 0,
-                    width: '1px',
+                    width: '1.5px',
                     backgroundColor: '#8b5cf6',
-                    boxShadow: '0 0 4px #8b5cf6',
+                    boxShadow: '0 0 6px #8b5cf6',
                   }
                 : {
                     top: `${guide.position}px`,
                     left: 0,
                     right: 0,
-                    height: '1px',
+                    height: '1.5px',
                     backgroundColor: '#8b5cf6',
-                    boxShadow: '0 0 4px #8b5cf6',
+                    boxShadow: '0 0 6px #8b5cf6',
                   }
             }
           />
