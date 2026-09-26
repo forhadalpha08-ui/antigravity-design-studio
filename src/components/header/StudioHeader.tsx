@@ -13,6 +13,7 @@ import {
   X,
   Compass,
 } from 'lucide-react';
+import { InstallAppButton } from '../common/InstallAppButton';
 
 export type DashboardTab = 'home' | 'templates' | 'projects' | 'guide' | 'brand-kit' | 'assets';
 
@@ -118,6 +119,9 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
           </div>
         </div>
 
+        {/* Install App Button for Android & Desktop */}
+        <InstallAppButton variant="header" />
+
         <button
           onClick={onOpenNewDesign}
           className="flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-violet-600/30 transition-all cursor-pointer"
@@ -157,6 +161,10 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
               {label}
             </button>
           ))}
+
+          <div className="pt-2 border-t border-neutral-800 px-2">
+            <InstallAppButton variant="banner" />
+          </div>
         </div>
       )}
     </header>

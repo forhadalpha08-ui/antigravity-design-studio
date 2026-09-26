@@ -5,6 +5,7 @@ import { TEMPLATES } from '../../templates/templatesData';
 import { CanvasRenderer } from '../../editor/canvas/CanvasRenderer';
 import { TemplateCard } from './TemplateCard';
 import { StudioWorkflowGuide } from './StudioWorkflowGuide';
+import { InstallAppButton } from '../common/InstallAppButton';
 import {
   Sparkles,
   Plus,
@@ -90,6 +91,9 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           </div>
         </div>
       </section>
+
+      {/* Install App Banner (Only visible if not installed on Android & Desktop) */}
+      <InstallAppButton variant="banner" />
 
       {/* 2. Quick Create / Recommended Sizes */}
       <section className="space-y-4">

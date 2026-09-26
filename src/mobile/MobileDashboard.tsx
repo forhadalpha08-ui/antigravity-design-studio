@@ -31,6 +31,7 @@ import {
   Compass,
 } from 'lucide-react';
 import { StudioWorkflowGuide } from '../components/dashboard/StudioWorkflowGuide';
+import { InstallAppButton } from '../components/common/InstallAppButton';
 
 export type MobileDashboardTab = 'home' | 'guide' | 'templates' | 'projects' | 'brand-kit' | 'assets';
 
@@ -132,13 +133,17 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
           </div>
         </div>
 
-        <button
-          onClick={onOpenNewDesignModal}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-violet-600 to-indigo-600 active:from-violet-500 active:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-md shadow-violet-600/30"
-        >
-          <Plus size={14} />
-          <span>New</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <InstallAppButton variant="mobile-header" />
+
+          <button
+            onClick={onOpenNewDesignModal}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-violet-600 to-indigo-600 active:from-violet-500 active:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-md shadow-violet-600/30"
+          >
+            <Plus size={14} />
+            <span>New</span>
+          </button>
+        </div>
       </header>
 
       {/* 2. MAIN SCROLLABLE CONTENT */}
@@ -162,6 +167,9 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
         {/* -------------------- TAB 1: HOME -------------------- */}
         {currentTab === 'home' && (
           <>
+            {/* Install App Banner (Only visible if not installed) */}
+            <InstallAppButton variant="banner" />
+
             {/* Quick Sizing Horizontal Strip */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">

@@ -1,0 +1,26 @@
+{
+  "name": "AF-CANVAS — Professional Graphic Design Platform",
+  "short_name": "AF-CANVAS",
+  "description": "Design graphics, posters, social media posts, logos, and vector art with AI superpowers and instant export.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#090a0f",
+  "theme_color": "#8b5cf6",
+  "categories": ["design", "productivity", "photo", "graphics"],
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "48x48 72x72 96x96 128x128 192x192 256x256 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
